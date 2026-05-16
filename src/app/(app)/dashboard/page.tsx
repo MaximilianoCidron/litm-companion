@@ -24,7 +24,7 @@ export default async function DashboardPage() {
       <section className="rounded-xl border border-mist-light bg-parchment-elevated p-6 dark:border-mist-dark dark:bg-ink-elevated">
         <p className="prose text-base">
           Bootstrap scaffold ready. Character sheet, themes, and session view
-          arrive in the next pass.
+          arrive in the next pass. Be ready!
         </p>
       </section>
     </main>
