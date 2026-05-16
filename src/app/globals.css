@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — see .claude/skills/litm-companion-design-system/SKILL.md §4
+ * Canonical tag colors are locked: power = yellow, weakness = orange.
+ * Never repurpose tag-power-* / tag-weakness-* for unrelated UI.
+ */
+
+@theme {
+  /* ---- Typography (loaded as next/font variables in layout.tsx) ---- */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-spectral), ui-serif, Georgia, serif;
+  --font-display: var(--font-cinzel), ui-serif, Georgia, serif;
+
+  /* ---- Light-mode surfaces (parchment / mist / ink) ---- */
+  --color-parchment: #f5efe2;
+  --color-parchment-soft: #ede5d2;
+  --color-parchment-elevated: #fffdf6;
+  --color-ink-base: #1c1814;
+  --color-ink-muted: #534b40;
+  --color-ink-subtle: #8a8170;
+  --color-mist-light: #d6cdb8;
+
+  /* ---- Dark-mode surfaces ---- */
+  --color-ink: #15171c;
+  --color-ink-soft: #1d202a;
+  --color-ink-elevated: #262a36;
+  --color-parchment-base: #eae3d2;
+  --color-parchment-muted: #a89f8a;
+  --color-parchment-subtle: #6f6856;
+  --color-mist-dark: #3a3f4d;
+
+  /* ---- Brand (ember — same hex both modes) ---- */
+  --color-ember: #c2640c;
+  --color-ember-hover: #a45508;
+  --color-ember-active: #864606;
+  --color-ember-text-light: #a14f00;
+  --color-ember-text-dark: #f0a050;
+
+  /* ---- Semantic ---- */
+  --color-moss: #3f7a4a;
+  --color-moss-soft: #d6e7d8;
+  --color-moss-soft-dark: #1f3a26;
+  --color-moss-dark: #7cc68a;
+  --color-moss-text: #234d2b;
+  --color-moss-text-dark: #b8e0bf;
+
+  --color-rust: #a5421a;
+  --color-rust-soft: #f0d2c0;
+  --color-rust-soft-dark: #3a1e10;
+  --color-rust-dark: #e08055;
+  --color-rust-text: #5c2510;
+  --color-rust-text-dark: #f0b89a;
+
+  --color-crimson: #9b1b1b;
+  --color-crimson-dark: #e55c5c;
+
+  --color-mist: #5d7280;
+  --color-mist-mid: #94a4b0;
+
+  /* ---- Canonical Tag colors (LOCKED by game rules) ---- */
+  --color-tag-power-soft: #fbe9a8;
+  --color-tag-power-soft-dark: #5a4310;
+  --color-tag-power-base: #c99410;
+  --color-tag-power-text: #5c3f00;
+  --color-tag-power-text-dark: #fad96a;
+
+  --color-tag-weakness-soft: #f4c99a;
+  --color-tag-weakness-soft-dark: #5c2810;
+  --color-tag-weakness-base: #c5511a;
+  --color-tag-weakness-text: #682800;
+  --color-tag-weakness-text-dark: #f6a36e;
+
+  /* Story tags share the canonical helpful/hindering polarity */
+  --color-tag-story-helpful: #fbe9a8;
+  --color-tag-story-hindering: #f4c99a;
+
+  /* ---- GM-only block treatment ---- */
+  --color-gm-veil: #5b6c8a;
+}
+
+/* Dark mode activated by .dark class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Defaults — body inherits Inter; .prose uses Spectral; headings use Cinzel. */
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--color-parchment);
+    color: var(--color-ink-base);
+    font-family: var(--font-sans);
+  }
+  html.dark body {
+    background-color: var(--color-ink);
+    color: var(--color-parchment-base);
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  .prose {
+    font-family: var(--font-serif);
+    line-height: 1.625;
+  }
+  .numeric {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+}
+
+/* Respect prefers-reduced-motion for celebratory transitions (§8). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

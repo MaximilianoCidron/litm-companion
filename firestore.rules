@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Returns true when the caller is the GM of any campaign in the supplied list.
+    function isGM(campaignIds) {
+      return isSignedIn()
+        && campaignIds is list
+        && campaignIds.size() > 0
+        && campaignIds.hasAny(
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.gmCampaignIds
+           );
+    }
+
+    // ------------------------------------------------------------------
+    // users/{uid} — caller can only touch their own user doc
+    // ------------------------------------------------------------------
+    match /users/{uid} {
+      allow read, write: if isSelf(uid);
+    }
+
+    // ------------------------------------------------------------------
+    // campaigns/{campaignId}
+    //   read: GM or any roster member
+    //   write: GM only
+    // ------------------------------------------------------------------
+    match /campaigns/{campaignId} {
+      allow read: if isSignedIn() && (
+        resource.data.gmId == request.auth.uid
+        || (resource.data.memberIds is list
+            && resource.data.memberIds.hasAny([request.auth.uid]))
+      );
+      allow create: if isSignedIn() && request.resource.data.gmId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.gmId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------------
+    // characters/{charId}
+    //   own character: full r/w
+    //   GM of the character's campaign: full r/w (to apply consequences)
+    // ------------------------------------------------------------------
+    match /characters/{charId} {
+      function ownerMatches() {
+        return resource.data.ownerId == request.auth.uid;
+      }
+      function gmOfCampaign() {
+        return resource.data.campaignId != null
+          && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmId
+             == request.auth.uid;
+      }
+
+      allow read: if isSignedIn() && (ownerMatches() || gmOfCampaign());
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        ownerMatches()
+        || (
+          resource.data.campaignId != null
+          && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmId
+             == request.auth.uid
+        )
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // challenges/{challengeId} — GM-only, never readable by players
+    // ------------------------------------------------------------------
+    match /challenges/{challengeId} {
+      allow read, update, delete: if isSignedIn()
+        && resource.data.gmId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.gmId == request.auth.uid;
+    }
+
+    // Default deny — every other path is forbidden.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
