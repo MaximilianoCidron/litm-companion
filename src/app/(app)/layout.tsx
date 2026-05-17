@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 import { verifySessionCookie } from "@/shared/firebase/session";
+import { AppHeader } from "@/shared/components/AppHeader";
+import type { AppUser } from "@/shared/components/UserMenu";
+import { signOutAction } from "@/features/auth";
 
 /**
  * Server-side session guard for the authenticated app shell.
@@ -16,5 +19,18 @@ export default async function AppShellLayout({
   if (!claims) {
     redirect("/login");
   }
-  return <>{children}</>;
+
+  const user: AppUser = {
+    uid: claims.sub,
+    email: claims.email ?? null,
+    displayName: (claims.name as string | undefined) ?? null,
+    photoURL: (claims.picture as string | undefined) ?? null,
+  };
+
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <AppHeader user={user} signOut={signOutAction} />
+      <div className="flex-1">{children}</div>
+    </div>
+  );
 }

@@ -12,7 +12,7 @@ import {
  * Re-verifies the session cookie (defense-in-depth vs CVE-2025-29927)
  * and revokes refresh tokens so a stolen cookie cannot be reused.
  */
-export async function logoutAction(): Promise<void> {
+export async function signOutAction(): Promise<void> {
   const claims = await verifySessionCookie({ checkRevoked: true });
   if (claims) {
     try {

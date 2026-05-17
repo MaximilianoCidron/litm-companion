@@ -46,6 +46,14 @@ const eslintConfig = defineConfig([
       ],
       "boundaries/no-unknown": "error",
       "boundaries/no-unknown-files": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   globalIgnores([

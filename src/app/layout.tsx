@@ -1,10 +1,13 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cinzel, Inter, Spectral } from "next/font/google";
+import { ThemeScript } from "@/shared/components/ThemeScript";
+import { Providers } from "@/shared/components/Providers";
 import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -19,13 +22,19 @@ const spectral = Spectral({
 const cinzel = Cinzel({
   variable: "--font-cinzel",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400", "600", "700"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Companion",
-  description: "Mist-engine companion app for table-side play.",
+  title: "Codex",
+  description: "Companion app for table-side play.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -35,8 +44,14 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${spectral.variable} ${cinzel.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        <ThemeScript />
+      </head>
+      <body className="min-h-full flex flex-col">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "overlayscrollbars/overlayscrollbars.css";
 
 /*
  * Design tokens — see .claude/skills/litm-companion-design-system/SKILL.md §4
@@ -119,4 +120,31 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* OverlayScrollbars — Codex theme. Used on <body> and every <ScrollArea>. */
+.os-theme-codex {
+  --os-size: 10px;
+  --os-padding-perpendicular: 2px;
+  --os-padding-axis: 2px;
+  --os-track-border-radius: 999px;
+  --os-track-bg: transparent;
+  --os-track-bg-hover: color-mix(in srgb, var(--color-mist-light) 35%, transparent);
+  --os-track-bg-active: color-mix(in srgb, var(--color-mist-light) 50%, transparent);
+  --os-handle-border-radius: 999px;
+  --os-handle-bg: color-mix(in srgb, var(--color-ink-muted) 45%, transparent);
+  --os-handle-bg-hover: color-mix(in srgb, var(--color-ink-muted) 70%, transparent);
+  --os-handle-bg-active: var(--color-ink-muted);
+  --os-handle-min-size: 32px;
+  --os-handle-perpendicular-size: 100%;
+  --os-handle-perpendicular-size-hover: 100%;
+  --os-handle-perpendicular-size-active: 100%;
+}
+
+html.dark .os-theme-codex {
+  --os-track-bg-hover: color-mix(in srgb, var(--color-mist-dark) 40%, transparent);
+  --os-track-bg-active: color-mix(in srgb, var(--color-mist-dark) 60%, transparent);
+  --os-handle-bg: color-mix(in srgb, var(--color-parchment-muted) 35%, transparent);
+  --os-handle-bg-hover: color-mix(in srgb, var(--color-parchment-muted) 55%, transparent);
+  --os-handle-bg-active: var(--color-parchment-muted);
 }
