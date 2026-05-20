@@ -66,6 +66,34 @@ export function formatThemeType(type: ThemeType): {
   };
 }
 
+export function nextMightLevel(level: MightLevel): MightLevel | null {
+  if (level === "origin") return "adventure";
+  if (level === "adventure") return "greatness";
+  return null;
+}
+
+export function formatMightLevel(level: MightLevel): string {
+  return MIGHT_LABEL[level];
+}
+
+const TYPES_BY_MIGHT: Record<MightLevel, readonly ThemeType[]> = Object.freeze({
+  origin: Object.freeze(
+    ThemeTypeSchema.options.filter((t) => t.startsWith("origin:")),
+  ),
+  adventure: Object.freeze(
+    ThemeTypeSchema.options.filter((t) => t.startsWith("adventure:")),
+  ),
+  greatness: Object.freeze(
+    ThemeTypeSchema.options.filter((t) => t.startsWith("greatness:")),
+  ),
+}) as Record<MightLevel, readonly ThemeType[]>;
+
+export function themeTypesForMightLevel(
+  level: MightLevel,
+): readonly ThemeType[] {
+  return TYPES_BY_MIGHT[level];
+}
+
 export const ThemeTracksSchema = z.object({
   improve: z.number().int().min(0).max(3),
   milestone: z.number().int().min(0).max(3),
@@ -78,7 +106,9 @@ export const ThemeSchema = z
     id: ThemeId,
     type: ThemeTypeSchema,
     mightLevel: MightLevelSchema,
-    name: z.string().min(1).max(60),
+    // Allow empty at the wire level — buildBlankTheme provisions a blank name.
+    // UpdateThemeInput(rename) enforces min(1) on user-driven edits.
+    name: z.string().max(60),
     quest: z.string().max(200).default(""),
     powerTags: z.array(PowerTagSchema).max(12),
     weaknessTag: WeaknessTagSchema,

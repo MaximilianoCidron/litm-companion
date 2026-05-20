@@ -1,9 +1,11 @@
 "use client";
-import { useTransition } from "react";
-import { X } from "lucide-react";
-import { TagPill, toast } from "@/shared/ui";
-import { cn } from "@/shared/lib/cn";
-import { removePowerTag } from "../../actions";
+import { TagPill } from "@/shared/ui";
+import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
+import {
+  burnTag,
+  removePowerTag,
+  updateTag,
+} from "../../actions";
 import { PowerTagAdder } from "./power-tag-adder";
 import type {
   CharacterId,
@@ -25,83 +27,93 @@ function tagState(tag: PowerTag): "active" | "scratched" | "burned" {
   return "active";
 }
 
-function PowerTagRow({
-  tag,
-  characterId,
-  themeId,
-  disabled,
-}: {
-  tag: PowerTag;
-  characterId: CharacterId;
-  themeId: ThemeId;
-  disabled: boolean;
-}) {
-  const [pending, startTransition] = useTransition();
-
-  const onRemove = () => {
-    startTransition(async () => {
-      const result = await removePowerTag({
-        characterId,
-        themeId,
-        tagId: tag.id as TagId,
-      });
-      if (!result.ok) {
-        toast.error("Couldn't remove tag", {
-          description: result.error.message,
-        });
-      }
-    });
-  };
-
-  return (
-    <div className="group relative inline-flex items-center">
-      {/* TODO(prompt-4): wire toggle and burn on pill click */}
-      <TagPill polarity="power" label={tag.name} state={tagState(tag)} />
-      {!disabled ? (
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={pending}
-          aria-label={`Remove ${tag.name}`}
-          className={cn(
-            "absolute -right-1 -top-1 hidden h-5 w-5 items-center justify-center rounded-full",
-            "bg-crimson text-parchment-elevated shadow-sm",
-            "group-hover:flex group-focus-within:flex",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ember",
-            "disabled:opacity-50",
-          )}
-        >
-          <X className="h-3 w-3" aria-hidden="true" />
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
 export function PowerTagList({
   characterId,
   themeId,
   tags,
   disabled = false,
 }: PowerTagListProps) {
+  const callAction = useActionWithToast();
+
   return (
     <div className="flex flex-col gap-2">
-      <ul className="flex flex-wrap gap-2">
+      <ul className="flex flex-wrap items-center gap-2">
         {tags.length === 0 ? (
           <li className="text-sm italic text-ink-subtle dark:text-parchment-subtle">
             None yet.
           </li>
         ) : (
-          tags.map((tag) => (
-            <li key={tag.id}>
-              <PowerTagRow
-                tag={tag}
-                characterId={characterId}
-                themeId={themeId}
-                disabled={disabled}
-              />
-            </li>
-          ))
+          tags.map((tag) => {
+            const tagIdBranded = tag.id as TagId;
+            const onToggleScratch =
+              disabled || tag.burned
+                ? undefined
+                : async () => {
+                    await callAction(
+                      updateTag({
+                        characterId,
+                        location: {
+                          kind: "theme",
+                          themeId,
+                          tagId: tagIdBranded,
+                        },
+                        patch: { kind: "scratch", scratched: !tag.scratched },
+                      }),
+                    );
+                  };
+            const onBurn =
+              disabled || tag.burned
+                ? undefined
+                : async () => {
+                    await callAction(
+                      burnTag({
+                        characterId,
+                        themeId,
+                        tagId: tagIdBranded,
+                      }),
+                    );
+                  };
+            const onRename = disabled
+              ? undefined
+              : async (newName: string) => {
+                  await callAction(
+                    updateTag({
+                      characterId,
+                      location: {
+                        kind: "theme",
+                        themeId,
+                        tagId: tagIdBranded,
+                      },
+                      patch: { kind: "rename", name: newName },
+                    }),
+                  );
+                };
+            const onRemove = disabled
+              ? undefined
+              : async () => {
+                  await callAction(
+                    removePowerTag({
+                      characterId,
+                      themeId,
+                      tagId: tagIdBranded,
+                    }),
+                  );
+                };
+            return (
+              <li key={tag.id}>
+                <TagPill
+                  polarity="power"
+                  label={tag.name}
+                  state={tagState(tag)}
+                  onToggleScratch={onToggleScratch}
+                  onBurn={onBurn}
+                  onRename={onRename}
+                  onRemove={onRemove}
+                  disabled={disabled}
+                />
+              </li>
+            );
+          })
         )}
       </ul>
       {!disabled ? (

@@ -7,3 +7,7 @@ export { updateTheme } from "./update-theme";
 export { addPowerTag } from "./add-power-tag";
 export { removePowerTag } from "./remove-power-tag";
 export { mutateSpecialImprovements } from "./mutate-special-improvements";
+export { claimImprovement } from "./claim-improvement";
+export { evolveTheme } from "./evolve-theme";
+export { replaceTheme } from "./replace-theme";
+export { commitRoll } from "./commit-roll";

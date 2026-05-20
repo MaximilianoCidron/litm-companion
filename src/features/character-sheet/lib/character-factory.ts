@@ -3,6 +3,7 @@ import {
   CampaignId,
   TagId,
   ThemeId,
+  inferMightLevel,
   type Character,
   type Theme,
   type ThemeType,
@@ -16,15 +17,22 @@ interface BuildBlankCharacterInput {
   campaignIds?: string[];
 }
 
+interface BuildBlankThemeInput {
+  type?: ThemeType;
+  name?: string;
+  quest?: string;
+}
+
 const DEFAULT_THEME_TYPE: ThemeType = "origin:trait";
 
-function blankTheme(): Theme {
+export function buildBlankTheme(input: BuildBlankThemeInput = {}): Theme {
+  const type = input.type ?? DEFAULT_THEME_TYPE;
   return {
     id: ThemeId.parse(crypto.randomUUID()),
-    type: DEFAULT_THEME_TYPE,
-    mightLevel: "origin",
-    name: "",
-    quest: "",
+    type,
+    mightLevel: inferMightLevel(type),
+    name: input.name ?? "",
+    quest: input.quest ?? "",
     powerTags: [],
     weaknessTag: {
       id: TagId.parse(crypto.randomUUID()),
@@ -54,7 +62,12 @@ export function buildBlankCharacter(
       avatarUrl: null,
       legendMistBalance: 0,
     },
-    themes: [blankTheme(), blankTheme(), blankTheme(), blankTheme()],
+    themes: [
+      buildBlankTheme(),
+      buildBlankTheme(),
+      buildBlankTheme(),
+      buildBlankTheme(),
+    ],
     statuses: [],
     backpack: { storyTags: [], notes: "" },
     progression: { promise: 0, quintessences: [] },

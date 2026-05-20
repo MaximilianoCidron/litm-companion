@@ -62,6 +62,18 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid;
       allow delete: if false;
+
+      // rolls subcollection — server-written via Admin SDK only; clients read.
+      match /rolls/{rollId} {
+        function parentChar() {
+          return get(/databases/$(database)/documents/characters/$(charId)).data;
+        }
+        allow read: if isSignedIn() && (
+          parentChar().userId == request.auth.uid
+          || isGM(parentChar().campaignIds)
+        );
+        allow write: if false;
+      }
     }
 
     // ------------------------------------------------------------------

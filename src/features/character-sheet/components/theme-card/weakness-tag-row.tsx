@@ -26,8 +26,11 @@ export function WeaknessTagRow({
     (name: string) =>
       updateTag({
         characterId,
-        themeId,
-        tagId: weaknessTag.id as TagId,
+        location: {
+          kind: "theme",
+          themeId,
+          tagId: weaknessTag.id as TagId,
+        },
         patch: { kind: "rename", name },
       }),
     [characterId, themeId, weaknessTag.id],

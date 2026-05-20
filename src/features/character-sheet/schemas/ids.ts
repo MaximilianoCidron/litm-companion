@@ -9,6 +9,7 @@ export const FellowshipRelationshipId = z
   .string()
   .min(1)
   .brand<"FellowshipRelationshipId">();
+export const RollId = z.string().min(1).brand<"RollId">();
 
 export type CharacterId = z.infer<typeof CharacterId>;
 export type ThemeId = z.infer<typeof ThemeId>;
@@ -16,3 +17,4 @@ export type TagId = z.infer<typeof TagId>;
 export type StatusId = z.infer<typeof StatusId>;
 export type CampaignId = z.infer<typeof CampaignId>;
 export type FellowshipRelationshipId = z.infer<typeof FellowshipRelationshipId>;
+export type RollId = z.infer<typeof RollId>;

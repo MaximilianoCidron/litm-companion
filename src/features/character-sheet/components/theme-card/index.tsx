@@ -130,8 +130,7 @@ export function ThemeCard({ theme, characterId, canEdit }: ThemeCardProps) {
           <SectionHeading>Tracks</SectionHeading>
           <TrackRow
             characterId={characterId}
-            themeId={theme.id}
-            tracks={theme.tracks}
+            theme={theme}
             disabled={!canEdit}
           />
         </div>

@@ -16,6 +16,7 @@ interface ApplyStatusResult {
   statusId: string;
   removed?: boolean;
   tier?: number;
+  name?: string;
 }
 
 const MAX_STATUSES = 20;
@@ -56,8 +57,12 @@ export const applyStatus = withAction(
           polarity: input.status.polarity,
         };
         next = [...statuses, newStatus];
-        result = { statusId: newId, tier: newStatus.tier };
-      } else if (input.status.kind === "update") {
+        result = {
+          statusId: newId,
+          tier: newStatus.tier,
+          name: newStatus.name,
+        };
+      } else if (input.status.kind === "setTier") {
         const patch = input.status;
         const idx = statuses.findIndex((s) => s.id === patch.statusId);
         if (idx === -1) {
@@ -69,6 +74,18 @@ export const applyStatus = withAction(
         };
         next = statuses.map((s, i) => (i === idx ? updated : s));
         result = { statusId: updated.id, tier: updated.tier };
+      } else if (input.status.kind === "rename") {
+        const patch = input.status;
+        const idx = statuses.findIndex((s) => s.id === patch.statusId);
+        if (idx === -1) {
+          throw new ActionError("NOT_FOUND", "Status not found.");
+        }
+        const updated: StatusDoc = {
+          ...statuses[idx]!,
+          name: patch.name,
+        };
+        next = statuses.map((s, i) => (i === idx ? updated : s));
+        result = { statusId: updated.id, name: updated.name };
       } else {
         const patch = input.status;
         const idx = statuses.findIndex((s) => s.id === patch.statusId);

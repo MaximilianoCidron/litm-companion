@@ -20,7 +20,10 @@ export type PowerTag = z.infer<typeof PowerTagSchema>;
 
 export const WeaknessTagSchema = z.object({
   id: TagId,
-  name: z.string().min(1).max(60),
+  // Allow empty at the wire level — buildBlankTheme provisions a placeholder
+  // weakness with an empty name. User-driven rename via UpdateTagInput
+  // enforces min(1).
+  name: z.string().max(60),
 });
 
 export type WeaknessTag = z.infer<typeof WeaknessTagSchema>;

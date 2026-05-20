@@ -5,6 +5,7 @@ export {
   StatusId,
   CampaignId,
   FellowshipRelationshipId,
+  RollId,
 } from "./ids";
 
 export {
@@ -22,6 +23,9 @@ export {
   ThemeSchema,
   inferMightLevel,
   formatThemeType,
+  nextMightLevel,
+  formatMightLevel,
+  themeTypesForMightLevel,
 } from "./theme";
 export type { MightLevel, ThemeType, ThemeTracks, Theme } from "./theme";
 
@@ -44,6 +48,23 @@ export { CharacterSchema, CharacterSummarySchema } from "./character";
 export type { Character, CharacterSummary } from "./character";
 
 export {
+  TagLocationSchema,
+  ResolvedTagInvocationSchema,
+  ResolvedStatusInvocationSchema,
+  MightModifierSchema,
+  RollTierSchema,
+  RollRecordSchema,
+} from "./roll";
+export type {
+  TagLocation,
+  ResolvedTagInvocation,
+  ResolvedStatusInvocation,
+  MightModifier,
+  RollTier,
+  RollRecord,
+} from "./roll";
+
+export {
   CreateCharacterInput,
   UpdateTagInput,
   BurnTagInput,
@@ -53,4 +74,14 @@ export {
   AddPowerTagInput,
   RemovePowerTagInput,
   MutateSpecialImprovementsInput,
+  ClaimImprovementInput,
+  EvolveThemeInput,
+  ReplaceThemeInput,
+  TagInvocationInputSchema,
+  StatusInvocationInputSchema,
+  CommitRollInput,
+} from "./inputs";
+export type {
+  TagInvocationInput,
+  StatusInvocationInput,
 } from "./inputs";

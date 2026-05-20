@@ -1,6 +1,7 @@
 "use client";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useCharacterSnapshot } from "../hooks/use-character-snapshot";
+import { useRollBuilder } from "../stores/roll-builder";
 import type { Character } from "../schemas";
 
 export type CharacterRole = "owner" | "gm";
@@ -25,6 +26,13 @@ export function CharacterProvider({
   children,
 }: CharacterProviderProps) {
   const { character, error } = useCharacterSnapshot(initial.id, initial);
+
+  // Reset the roll builder when the active character changes — the picker
+  // would otherwise carry over stale selections from a different sheet.
+  useEffect(() => {
+    useRollBuilder.getState().reset();
+  }, [initial.id]);
+
   return (
     <CharacterContext.Provider value={{ character, role, error }}>
       {children}

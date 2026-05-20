@@ -72,7 +72,7 @@ export function CreateCharacterDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Forge a new hero</DialogTitle>
         </DialogHeader>

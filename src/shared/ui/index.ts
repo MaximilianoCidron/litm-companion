@@ -84,3 +84,6 @@ export { GMBlock } from "./gm-block";
 
 export { EditableField } from "./EditableField";
 export type { EditableFieldProps } from "./EditableField";
+
+export { ConfirmDialog } from "./ConfirmDialog";
+export type { ConfirmDialogProps } from "./ConfirmDialog";

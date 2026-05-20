@@ -1,12 +1,16 @@
 "use client";
 import { Card, Skeleton, Track } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
+import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment-badge";
 
 export function HeroSection() {
-  const { character } = useCharacter();
+  const { character, role } = useCharacter();
   const { identity, progression, fellowship } = character;
   const hasRelationships = fellowship.relationships.length > 0;
   const hasQuintessences = progression.quintessences.length > 0;
+  const canEdit = role === "owner" || role === "gm";
+  const showMomentOfFulfillment =
+    progression.promise === 5 && canEdit;
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
@@ -77,8 +81,13 @@ export function HeroSection() {
             )}
           </div>
 
-          <div>
+          <div className="flex flex-col gap-2">
             <Track total={5} filled={progression.promise} label="Promise" />
+            {showMomentOfFulfillment ? (
+              <div className="mt-2">
+                <MomentOfFulfillmentBadge />
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2">

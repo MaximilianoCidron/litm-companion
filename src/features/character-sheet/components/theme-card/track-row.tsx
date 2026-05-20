@@ -1,14 +1,13 @@
 "use client";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useTransition } from "react";
 import { Track, toast } from "@/shared/ui";
 import { markTrack } from "../../actions";
 import { AdvancementBadge, type AdvancementKind } from "./advancement-badge";
-import type { CharacterId, Theme, ThemeId } from "../../schemas";
+import type { CharacterId, Theme } from "../../schemas";
 
 interface TrackRowProps {
   characterId: CharacterId;
-  themeId: ThemeId;
-  tracks: Theme["tracks"];
+  theme: Theme;
   disabled?: boolean;
 }
 
@@ -22,26 +21,25 @@ const LABEL: Record<AdvancementKind, string> = {
 
 function TrackCell({
   characterId,
-  themeId,
+  theme,
   trackKey,
   filled,
   disabled,
 }: {
   characterId: CharacterId;
-  themeId: ThemeId;
+  theme: Theme;
   trackKey: AdvancementKind;
   filled: number;
   disabled: boolean;
 }) {
   const [, startTransition] = useTransition();
-  const [celebrate, setCelebrate] = useState(false);
 
   const onChange = useCallback(
     (delta: -1 | 1) => {
       startTransition(async () => {
         const result = await markTrack({
           characterId,
-          themeId,
+          themeId: theme.id,
           track: trackKey,
           delta,
         });
@@ -49,18 +47,10 @@ function TrackCell({
           toast.error("Couldn't update track", {
             description: result.error.message,
           });
-          return;
-        }
-        if (result.data.advancementAvailable) {
-          setCelebrate(true);
-          // Auto-clear the one-shot so the badge can celebrate again next time
-          // the track refills (badge unmounts in between, so the residual flag
-          // would otherwise leak across mount cycles).
-          setTimeout(() => setCelebrate(false), 1500);
         }
       });
     },
-    [characterId, themeId, trackKey],
+    [characterId, theme.id, trackKey],
   );
 
   return (
@@ -75,9 +65,9 @@ function TrackCell({
       {filled === 3 ? (
         <AdvancementBadge
           kind={trackKey}
-          themeId={themeId}
+          theme={theme}
+          characterId={characterId}
           disabled={disabled}
-          celebrate={celebrate}
         />
       ) : null}
     </div>
@@ -86,8 +76,7 @@ function TrackCell({
 
 export function TrackRow({
   characterId,
-  themeId,
-  tracks,
+  theme,
   disabled = false,
 }: TrackRowProps) {
   return (
@@ -96,9 +85,9 @@ export function TrackRow({
         <TrackCell
           key={key}
           characterId={characterId}
-          themeId={themeId}
+          theme={theme}
           trackKey={key}
-          filled={tracks[key]}
+          filled={theme.tracks[key]}
           disabled={disabled}
         />
       ))}
