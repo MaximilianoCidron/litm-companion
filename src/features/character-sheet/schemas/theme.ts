@@ -37,6 +37,35 @@ export function inferMightLevel(type: ThemeType): MightLevel {
   throw new Error(`Unknown theme type prefix: ${type}`);
 }
 
+const MIGHT_LABEL: Record<MightLevel, string> = {
+  origin: "Origin",
+  adventure: "Adventure",
+  greatness: "Greatness",
+};
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .split("_")
+    .map((part) =>
+      part.length === 0 ? part : part[0]!.toUpperCase() + part.slice(1),
+    )
+    .join(" ");
+}
+
+export function formatThemeType(type: ThemeType): {
+  label: string;
+  mightLevel: MightLevel;
+  mightLabel: string;
+} {
+  const mightLevel = inferMightLevel(type);
+  const slug = type.split(":")[1] ?? "";
+  return {
+    label: humanizeSlug(slug),
+    mightLevel,
+    mightLabel: MIGHT_LABEL[mightLevel],
+  };
+}
+
 export const ThemeTracksSchema = z.object({
   improve: z.number().int().min(0).max(3),
   milestone: z.number().int().min(0).max(3),

@@ -119,6 +119,27 @@
   }
 }
 
+/* Celebratory one-shot glow used for track-fill / advancement reveals.
+   Apply via `class="fx-celebrate"`. The reduced-motion override below
+   silences it for users who opted out. */
+@keyframes fx-celebrate {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-ember);
+    transform: scale(1);
+  }
+  40% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--color-ember) 30%, transparent);
+    transform: scale(1.04);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ember) 0%, transparent);
+    transform: scale(1);
+  }
+}
+.fx-celebrate {
+  animation: fx-celebrate 1.2s ease-out 1;
+}
+
 /* Respect prefers-reduced-motion for celebratory transitions (§8). */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

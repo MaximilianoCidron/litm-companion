@@ -2,7 +2,7 @@
 
 > **Update rule:** Refresh after any change that alters stack, architecture, routes, data model, auth flow, or major features — **before** committing those changes. Canonical snapshot of "what this app is right now."
 
-Last updated: 2026-05-19 (real Firestore reads via Admin SDK + live `onSnapshot` listener via Client SDK; sections render real character data)
+Last updated: 2026-05-19 (interactive ThemeCard: editable name/type/quest, power-tag add/remove, special improvements CRUD, ±1 track stepper, advancement badge)
 
 ---
 
@@ -106,7 +106,15 @@ src/
 │       │   ├── CreateCharacterDialog.tsx      # Wired to createCharacter Server Action
 │       │   ├── BookTabNav.tsx                 # Vertical book-tab nav (md+)
 │       │   ├── BookTabBarMobile.tsx           # Horizontal scrollable tabs (< md)
-│       │   ├── ThemeCardPlaceholder.tsx
+│       │   ├── theme-card/                    # Interactive theme card (replaces ThemeCardPlaceholder)
+│       │   │   ├── index.tsx                  # <ThemeCard theme characterId canEdit>
+│       │   │   ├── type-selector.tsx          # DropdownMenu grouped by Might level
+│       │   │   ├── power-tag-list.tsx         # Read-only TagPill list w/ hover × remove
+│       │   │   ├── power-tag-adder.tsx        # Inline "+ Add tag" editor
+│       │   │   ├── weakness-tag-row.tsx       # EditableField → updateTag(rename)
+│       │   │   ├── track-row.tsx              # 3× Track (±1 stepper) + AdvancementBadge
+│       │   │   ├── advancement-badge.tsx      # Toast placeholder; one-shot fx-celebrate glow
+│       │   │   └── special-improvements-list.tsx  # Add/edit/remove rows
 │       │   ├── CharacterProvider.tsx          # Client: hosts useCharacterSnapshot + exports useCharacter()
 │       │   ├── CharacterHeader.tsx            # Client: live name + concept (reads context)
 │       │   ├── ConnectionBanner.tsx           # Client: rust-soft strip when listener errors
@@ -122,6 +130,10 @@ src/
 │       │   ├── burn-tag.ts                    # burnTag (power tags only)
 │       │   ├── apply-status.ts                # applyStatus (add | update | clear)
 │       │   ├── mark-track.ts                  # markTrack (improve | milestone | abandon)
+│       │   ├── update-theme.ts                # updateTheme (rename | retype atomically with mightLevel | setQuest)
+│       │   ├── add-power-tag.ts               # addPowerTag (max 12 per theme)
+│       │   ├── remove-power-tag.ts            # removePowerTag
+│       │   ├── mutate-special-improvements.ts # mutateSpecialImprovements (add | remove | edit)
 │       │   └── index.ts                       # barrel (re-exports action fns only)
 │       ├── hooks/
 │       │   └── use-character-snapshot.ts      # Client: onSnapshot listener; last-known-good preservation
@@ -155,6 +167,8 @@ src/
     │   ├── admin.ts
     │   └── session.ts                         # verifySessionCookie, requireUser
     ├── stores/ui-store.ts                     # Zustand: theme + mobile drawer + active modal
+    ├── hooks/
+    │   └── use-debounced-field-save.ts        # Generic debounced save with reconcile + state machine
     ├── lib/
     │   ├── cn.ts                              # clsx + tailwind-merge
     │   └── theme.ts                           # Theme type, getStored/setStored/applyTheme
@@ -182,6 +196,7 @@ src/
         ├── tag-pill.tsx                       # Canonical power/weakness/story pill
         ├── tag-pill-icons.tsx                 # Sparkles/Thorn/Flame/Leaf icon exports
         ├── gm-block.tsx                       # GM-veil left-border wrapper
+        ├── EditableField.tsx                  # Debounced-save input/textarea w/ status indicator
         └── index.ts                           # Barrel
 ```
 
@@ -216,7 +231,18 @@ Highlights:
 - **Theme system**: light/dark/system via `useUIStore`, persisted in `localStorage` (`codex.theme`), pre-hydration script + post-hydration store sync.
 - **CreateCharacterDialog** placeholder (Server Action stub → toast.success "Coming soon").
 
-**Built (most recent pass — real reads + live listener):**
+**Built (most recent pass — interactive ThemeCard):**
+- **`<Track>` primitive** rewritten with `onChange?: (delta: -1 | 1) => void` step semantics. Only the next-empty pip (+1) and last-filled pip (−1) are clickable; other pips are visually present but `pointer-events: none`. Read-only when `onChange` absent.
+- **`shared/hooks/use-debounced-field-save.ts`** — generic state machine: `idle → pending → saving → saved → idle` (1.5s flash) or `→ error`. Reconciles with upstream when remote diverges from last-saved.
+- **`shared/ui/EditableField.tsx`** — Client wrapper around the hook. `<input>` or `<textarea>` styled as parchment line + status indicator (dot/spinner/check/alert).
+- **4 new Server Actions**: `updateTheme` (rename/retype/setQuest — `retype` atomically updates `type` AND `mightLevel`), `addPowerTag` (max 12, UUID id, `PowerTagSchema.parse` pre-push), `removePowerTag`, `mutateSpecialImprovements` (add/remove/edit, max 12).
+- **`formatThemeType(type)`** helper in `schemas/theme.ts` — humanizes `origin:skill_trade` → `{ label: "Skill Trade", mightLabel: "Origin" }`.
+- **`theme-card/` folder** — 8 subcomponents replacing `ThemeCardPlaceholder`: TypeSelector (DropdownMenu grouped by Might), WeaknessTagRow, PowerTagList + PowerTagAdder, TrackRow (3× Track + AdvancementBadge), AdvancementBadge (toast placeholder + fx-celebrate glow), SpecialImprovementsList, root index composing all.
+- **`ThemeCard` root** — leather header w/ TypeSelector + might label; body sections: Name, Power tags, Weakness, Quest, Tracks, Special improvements. `canEdit` from `role === "owner" || "gm"`; when false all inputs/buttons disabled.
+- **`ThemeCardPlaceholder.tsx` deleted**; barrel updated.
+- **`globals.css`** — added `@keyframes fx-celebrate` + `.fx-celebrate` rule (color-mix glow). Reduced-motion override silences it.
+
+**Built (prior pass — real reads + live listener):**
 - **`shared/auth/get-session-user.ts`** — Server Component helper; redirects to `/login` on UNAUTHENTICATED (Server Actions still use `requireAuth` to surface structured errors).
 - **`requireAuth` extended** to surface `displayName` + `photoURL` from session claims.
 - **`features/character-sheet/lib/access.ts`** — moved from `actions/_shared.ts`. Signature returns `{ role, snap }`; supports both transactional and plain reads. All 5 action call sites updated.
@@ -239,8 +265,9 @@ Highlights:
 - **`firestore.rules` patched** — `characters/{charId}` block uses `data.userId` and `data.campaignIds`.
 
 **Not yet built:**
-- Interactive write paths in the UI (tap-to-scratch tag, tier +/- controls, mark track buttons). Sections render real data read-only.
-- Theme evolve / replace / improve-claim flows (separate actions).
+- **Tag-level interactions** on existing pills: scratch toggle, burn (power-tag pills are read-only with only × remove; click body is a no-op with `TODO(prompt-4)` comment).
+- Status tier +/- controls in StatusesSection.
+- Theme evolve / replace / improve-claim **actions** (AdvancementBadge fires "Coming soon" toast).
 - Story-tag add/rename/burn.
 - Active scene view (declared threats, scene tags, roll panel).
 - GM Dashboard.

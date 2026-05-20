@@ -5,7 +5,7 @@ export { CreateCharacterCard } from "./components/CreateCharacterCard";
 export { CreateCharacterDialog } from "./components/CreateCharacterDialog";
 export { BookTabNav } from "./components/BookTabNav";
 export { BookTabBarMobile } from "./components/BookTabBarMobile";
-export { ThemeCardPlaceholder } from "./components/ThemeCardPlaceholder";
+export { ThemeCard } from "./components/theme-card";
 
 export { CharacterProvider, useCharacter } from "./components/CharacterProvider";
 export type { CharacterRole } from "./components/CharacterProvider";

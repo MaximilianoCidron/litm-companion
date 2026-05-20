@@ -3,3 +3,7 @@ export { updateTag } from "./update-tag";
 export { burnTag } from "./burn-tag";
 export { applyStatus } from "./apply-status";
 export { markTrack } from "./mark-track";
+export { updateTheme } from "./update-theme";
+export { addPowerTag } from "./add-power-tag";
+export { removePowerTag } from "./remove-power-tag";
+export { mutateSpecialImprovements } from "./mutate-special-improvements";

@@ -81,3 +81,6 @@ export { TagPill } from "./tag-pill";
 export type { TagPillProps, TagPolarity, TagState } from "./tag-pill";
 
 export { GMBlock } from "./gm-block";
+
+export { EditableField } from "./EditableField";
+export type { EditableFieldProps } from "./EditableField";

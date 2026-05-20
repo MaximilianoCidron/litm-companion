@@ -21,6 +21,7 @@ export {
   ThemeTracksSchema,
   ThemeSchema,
   inferMightLevel,
+  formatThemeType,
 } from "./theme";
 export type { MightLevel, ThemeType, ThemeTracks, Theme } from "./theme";
 
@@ -48,4 +49,8 @@ export {
   BurnTagInput,
   ApplyStatusInput,
   MarkTrackInput,
+  UpdateThemeInput,
+  AddPowerTagInput,
+  RemovePowerTagInput,
+  MutateSpecialImprovementsInput,
 } from "./inputs";

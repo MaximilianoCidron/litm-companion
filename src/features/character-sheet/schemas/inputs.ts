@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CampaignId, CharacterId, StatusId, TagId, ThemeId } from "./ids";
+import { ThemeTypeSchema } from "./theme";
 
 export const CreateCharacterInput = z.object({
   name: z.string().min(1).max(60),
@@ -61,3 +62,48 @@ export const MarkTrackInput = z.object({
   delta: z.union([z.literal(1), z.literal(-1)]),
 });
 export type MarkTrackInput = z.infer<typeof MarkTrackInput>;
+
+export const UpdateThemeInput = z.object({
+  characterId: CharacterId,
+  themeId: ThemeId,
+  patch: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("rename"), name: z.string().min(1).max(60) }),
+    z.object({ kind: z.literal("retype"), type: ThemeTypeSchema }),
+    z.object({ kind: z.literal("setQuest"), quest: z.string().max(200) }),
+  ]),
+});
+export type UpdateThemeInput = z.infer<typeof UpdateThemeInput>;
+
+export const AddPowerTagInput = z.object({
+  characterId: CharacterId,
+  themeId: ThemeId,
+  name: z.string().min(1).max(60),
+});
+export type AddPowerTagInput = z.infer<typeof AddPowerTagInput>;
+
+export const RemovePowerTagInput = z.object({
+  characterId: CharacterId,
+  themeId: ThemeId,
+  tagId: TagId,
+});
+export type RemovePowerTagInput = z.infer<typeof RemovePowerTagInput>;
+
+export const MutateSpecialImprovementsInput = z.object({
+  characterId: CharacterId,
+  themeId: ThemeId,
+  op: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("add"), text: z.string().min(1).max(120) }),
+    z.object({
+      kind: z.literal("remove"),
+      index: z.number().int().nonnegative(),
+    }),
+    z.object({
+      kind: z.literal("edit"),
+      index: z.number().int().nonnegative(),
+      text: z.string().min(1).max(120),
+    }),
+  ]),
+});
+export type MutateSpecialImprovementsInput = z.infer<
+  typeof MutateSpecialImprovementsInput
+>;
