@@ -12,7 +12,8 @@ export interface ToastItem {
 
 type Listener = (items: ToastItem[]) => void;
 
-let toasts: ToastItem[] = [];
+const EMPTY_SNAPSHOT: ToastItem[] = [];
+let toasts: ToastItem[] = EMPTY_SNAPSHOT;
 const listeners = new Set<Listener>();
 
 function emit(): void {
@@ -29,7 +30,7 @@ function getSnapshot(): ToastItem[] {
 }
 
 function getServerSnapshot(): ToastItem[] {
-  return [];
+  return EMPTY_SNAPSHOT;
 }
 
 function push(item: Omit<ToastItem, "id">): string {
@@ -40,7 +41,8 @@ function push(item: Omit<ToastItem, "id">): string {
 }
 
 function dismiss(id: string): void {
-  toasts = toasts.filter((t) => t.id !== id);
+  const next = toasts.filter((t) => t.id !== id);
+  toasts = next.length === 0 ? EMPTY_SNAPSHOT : next;
   emit();
 }
 

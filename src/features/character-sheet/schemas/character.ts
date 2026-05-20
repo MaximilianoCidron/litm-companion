@@ -1,50 +1,37 @@
 import { z } from "zod";
+import { CampaignId, CharacterId } from "./ids";
+import { IdentitySchema } from "./identity";
+import { ThemeSchema } from "./theme";
+import { StatusSchema } from "./status";
+import { BackpackSchema } from "./backpack";
+import { ProgressionSchema } from "./progression";
+import { FellowshipRelationshipSchema } from "./fellowship";
 
-/**
- * Minimal schemas for the UI scaffold. Full schemas (tracks, statuses,
- * relationships, statuses w/ tier) land with the Firestore data layer.
- */
+export const CharacterSchema = z.object({
+  id: CharacterId,
+  userId: z.string().min(1),
+  campaignIds: z.array(CampaignId).max(20),
+  identity: IdentitySchema,
+  themes: z.tuple([ThemeSchema, ThemeSchema, ThemeSchema, ThemeSchema]),
+  statuses: z.array(StatusSchema).max(20),
+  backpack: BackpackSchema,
+  progression: ProgressionSchema,
+  fellowship: z.object({
+    relationships: z.array(FellowshipRelationshipSchema).max(10),
+  }),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
 
-export const characterSummarySchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  concept: z.string().min(1),
+export type Character = z.infer<typeof CharacterSchema>;
+
+export const CharacterSummarySchema = z.object({
+  id: CharacterId,
+  name: z.string(),
+  concept: z.string(),
   avatarUrl: z.string().url().nullable(),
-  campaignName: z.string().min(1),
+  campaignName: z.string().nullable(),
   promise: z.number().int().min(0).max(5),
 });
 
-export type CharacterSummary = z.infer<typeof characterSummarySchema>;
-
-export const themePlaceholderSchema = z.object({
-  id: z.string().min(1),
-  title: z.string(),
-  type: z.string(),
-  origin: z.string(),
-  quest: z.string(),
-  powerTags: z.array(z.string()).max(5),
-  weaknessTags: z.array(z.string()).max(3),
-  abandon: z.number().int().min(0).max(3),
-  improve: z.number().int().min(0).max(3),
-  milestone: z.number().int().min(0).max(3),
-});
-
-export type ThemePlaceholder = z.infer<typeof themePlaceholderSchema>;
-
-export const characterSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  concept: z.string().min(1),
-  avatarUrl: z.string().url().nullable(),
-  campaignName: z.string().min(1),
-  promise: z.number().int().min(0).max(5),
-  playerName: z.string().nullable(),
-  themes: z.tuple([
-    themePlaceholderSchema,
-    themePlaceholderSchema,
-    themePlaceholderSchema,
-    themePlaceholderSchema,
-  ]),
-});
-
-export type Character = z.infer<typeof characterSchema>;
+export type CharacterSummary = z.infer<typeof CharacterSummarySchema>;

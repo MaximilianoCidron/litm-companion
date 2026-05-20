@@ -93,11 +93,17 @@
   }
   body {
     background-color: var(--color-parchment);
+    background-image: url("/images/BG-1.png");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
     color: var(--color-ink-base);
     font-family: var(--font-sans);
   }
   html.dark body {
     background-color: var(--color-ink);
+    background-image: url("/images/BG-2.png");
     color: var(--color-parchment-base);
   }
   h1, h2, h3, h4 {

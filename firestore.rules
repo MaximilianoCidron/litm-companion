@@ -47,30 +47,21 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------
     // characters/{charId}
-    //   own character: full r/w
-    //   GM of the character's campaign: full r/w (to apply consequences)
+    //   own character: full r/w (data.userId == uid)
+    //   GM of any of the character's campaigns: full r/w (to apply consequences)
+    //   delete: forbidden — explicit Server Action only.
     // ------------------------------------------------------------------
     match /characters/{charId} {
       function ownerMatches() {
-        return resource.data.ownerId == request.auth.uid;
-      }
-      function gmOfCampaign() {
-        return resource.data.campaignId != null
-          && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmId
-             == request.auth.uid;
+        return resource.data.userId == request.auth.uid;
       }
 
-      allow read: if isSignedIn() && (ownerMatches() || gmOfCampaign());
-      allow create: if isSignedIn()
-        && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isSignedIn() && (
-        ownerMatches()
-        || (
-          resource.data.campaignId != null
-          && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmId
-             == request.auth.uid
-        )
+      allow read, update: if isSignedIn() && (
+        ownerMatches() || isGM(resource.data.campaignIds)
       );
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
     }
 
     // ------------------------------------------------------------------
