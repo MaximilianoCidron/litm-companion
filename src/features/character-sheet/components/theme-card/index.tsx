@@ -1,7 +1,7 @@
 "use client";
 import { useCallback } from "react";
 import { Card, EditableField, Separator } from "@/shared/ui";
-import { updateTheme } from "../../actions";
+import { mutateSpecialImprovements, updateTheme } from "../../actions";
 import { formatThemeType, type CharacterId, type Theme } from "../../schemas";
 import { TypeSelector } from "./type-selector";
 import { PowerTagList } from "./power-tag-list";
@@ -140,10 +140,29 @@ export function ThemeCard({ theme, characterId, canEdit }: ThemeCardProps) {
         <div className="flex flex-col gap-2">
           <SectionHeading>Special improvements</SectionHeading>
           <SpecialImprovementsList
-            characterId={characterId}
-            themeId={theme.id}
             improvements={theme.specialImprovements}
             disabled={!canEdit}
+            onAdd={(text) =>
+              mutateSpecialImprovements({
+                characterId,
+                themeId: theme.id,
+                op: { kind: "add", text },
+              })
+            }
+            onEdit={(index, text) =>
+              mutateSpecialImprovements({
+                characterId,
+                themeId: theme.id,
+                op: { kind: "edit", index, text },
+              })
+            }
+            onRemove={(index) =>
+              mutateSpecialImprovements({
+                characterId,
+                themeId: theme.id,
+                op: { kind: "remove", index },
+              })
+            }
           />
         </div>
       </Card.Body>

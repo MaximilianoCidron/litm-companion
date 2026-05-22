@@ -40,7 +40,10 @@ export function makeTagKey(
   tagId: TagId,
 ): TagInvocationKey {
   if (location.kind === "theme") return `theme:${location.themeId}:${tagId}`;
-  return `backpack:${tagId}`;
+  if (location.kind === "backpack") return `backpack:${tagId}`;
+  if (location.kind === "fellowship")
+    return `fellowship:${location.campaignId}:${tagId}`;
+  return `relationship:${location.relationshipId}`;
 }
 
 export const useRollBuilder = create<RollBuilderState>()(

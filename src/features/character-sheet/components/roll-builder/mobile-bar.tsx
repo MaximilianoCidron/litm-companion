@@ -1,6 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useCharacter } from "../CharacterProvider";
+import { useCampaign } from "../CampaignProvider";
 import {
   useInvokedStatuses,
   useInvokedTags,
@@ -15,11 +16,14 @@ import type { StatusInvocationInput, StatusId, TagInvocationInput } from "../../
 
 export function MobileBar() {
   const { character } = useCharacter();
+  const campaign = useCampaign();
   const invokedTags = useInvokedTags();
   const invokedStatuses = useInvokedStatuses();
   const mightModifier = useMightModifier();
   const isReaction = useIsReaction();
   const setExpanded = useRollBuilder((s) => s.setExpanded);
+  const liveCampaign =
+    campaign.status === "live" ? campaign.campaign : null;
 
   const total = useMemo(() => {
     const tags: TagInvocationInput[] = Array.from(invokedTags.values()).map(
@@ -32,8 +36,13 @@ export function MobileBar() {
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
     ).map((id) => ({ statusId: id as StatusId }));
-    return computePower(character, { tags, statuses }, mightModifier).total;
-  }, [character, invokedTags, invokedStatuses, mightModifier]);
+    return computePower(
+      character,
+      liveCampaign,
+      { tags, statuses },
+      mightModifier,
+    ).total;
+  }, [character, liveCampaign, invokedTags, invokedStatuses, mightModifier]);
 
   return (
     <button

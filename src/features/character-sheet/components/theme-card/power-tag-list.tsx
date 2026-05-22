@@ -2,6 +2,7 @@
 import { TagPill } from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import {
+  addPowerTag,
   burnTag,
   removePowerTag,
   updateTag,
@@ -118,8 +119,7 @@ export function PowerTagList({
       </ul>
       {!disabled ? (
         <PowerTagAdder
-          characterId={characterId}
-          themeId={themeId}
+          onAdd={(name) => addPowerTag({ characterId, themeId, name })}
           currentCount={tags.length}
         />
       ) : null}

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(pnpm -v)",
       "PowerShell(pnpm *)",
-      "PowerShell(npm i *)"
+      "PowerShell(npm i *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

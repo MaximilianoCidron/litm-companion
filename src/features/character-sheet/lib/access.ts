@@ -14,6 +14,13 @@ export interface CharacterAccess {
   snap: DocumentSnapshot<DocumentData>;
 }
 
+export type CampaignAccessRole = "gm" | "member";
+
+export interface CampaignAccess {
+  role: CampaignAccessRole;
+  snap: DocumentSnapshot<DocumentData>;
+}
+
 /**
  * Authorize a character read/write and return the doc snapshot.
  * Owner: doc.userId === uid.
@@ -58,4 +65,52 @@ export async function requireCharacterAccess(
     "FORBIDDEN",
     "You do not have access to this character.",
   );
+}
+
+/**
+ * Authorize a GM-only campaign read/write and return the doc snapshot. Use in
+ * every action that mutates campaign state (rename, fellowship edits,
+ * invitations, kicks, transfers).
+ */
+export async function requireCampaignGm(
+  campaignId: string,
+  uid: string,
+  tx?: Transaction,
+): Promise<{ snap: DocumentSnapshot<DocumentData> }> {
+  const db = getAdminDb();
+  const ref = db.collection("campaigns").doc(campaignId);
+  const snap = tx ? await tx.get(ref) : await ref.get();
+  if (!snap.exists) {
+    throw new ActionError("NOT_FOUND", "Campaign not found.");
+  }
+  const data = snap.data() ?? {};
+  if (data.gmUid !== uid) {
+    throw new ActionError("FORBIDDEN", "Only the GM can do that.");
+  }
+  return { snap };
+}
+
+/**
+ * Authorize a campaign read for any member (GM or player). Returns the
+ * snapshot + the caller's role. Used by reads where the GM and members see
+ * the same data but different controls.
+ */
+export async function requireCampaignMembership(
+  campaignId: string,
+  uid: string,
+  tx?: Transaction,
+): Promise<CampaignAccess> {
+  const db = getAdminDb();
+  const ref = db.collection("campaigns").doc(campaignId);
+  const snap = tx ? await tx.get(ref) : await ref.get();
+  if (!snap.exists) {
+    throw new ActionError("NOT_FOUND", "Campaign not found.");
+  }
+  const data = snap.data() ?? {};
+  if (data.gmUid === uid) return { role: "gm", snap };
+  const playerUids: string[] = Array.isArray(data.playerUids)
+    ? data.playerUids
+    : [];
+  if (playerUids.includes(uid)) return { role: "member", snap };
+  throw new ActionError("FORBIDDEN", "Not a member of this campaign.");
 }

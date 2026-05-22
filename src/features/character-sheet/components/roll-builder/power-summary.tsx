@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 import { cn } from "@/shared/lib/cn";
 import { useCharacter } from "../CharacterProvider";
+import { useCampaign } from "../CampaignProvider";
 import {
   useInvokedStatuses,
   useInvokedTags,
@@ -16,9 +17,12 @@ import type {
 
 export function PowerSummary() {
   const { character } = useCharacter();
+  const campaign = useCampaign();
   const invokedTags = useInvokedTags();
   const invokedStatuses = useInvokedStatuses();
   const mightModifier = useMightModifier();
+  const liveCampaign =
+    campaign.status === "live" ? campaign.campaign : null;
 
   const breakdown = useMemo(() => {
     const tags: TagInvocationInput[] = Array.from(invokedTags.values()).map(
@@ -31,8 +35,13 @@ export function PowerSummary() {
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
     ).map((id) => ({ statusId: id as StatusId }));
-    return computePower(character, { tags, statuses }, mightModifier);
-  }, [character, invokedTags, invokedStatuses, mightModifier]);
+    return computePower(
+      character,
+      liveCampaign,
+      { tags, statuses },
+      mightModifier,
+    );
+  }, [character, liveCampaign, invokedTags, invokedStatuses, mightModifier]);
 
   const sign = breakdown.total > 0 ? "+" : breakdown.total < 0 ? "" : "+";
   const isEmpty = breakdown.items.length === 0;

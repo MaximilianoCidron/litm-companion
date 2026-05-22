@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { CampaignId, CharacterId, StatusId, TagId, ThemeId } from "./ids";
+import {
+  CampaignId,
+  CharacterId,
+  FellowshipRelationshipId,
+  InvitationId,
+  StatusId,
+  TagId,
+  ThemeId,
+} from "./ids";
 import { ThemeTypeSchema } from "./theme";
 import { MightModifierSchema, TagLocationSchema } from "./roll";
 
@@ -11,10 +19,19 @@ export const CreateCharacterInput = z.object({
 export type CreateCharacterInput = z.infer<typeof CreateCharacterInput>;
 
 export const UpdateTagInput = z.object({
+  // characterId is required for theme/backpack patches; for fellowship patches
+  // the campaignId is the routing key, but we keep characterId in the wire shape
+  // so the access middleware can still verify the caller has an associated
+  // character (and to keep all UpdateTag invocations symmetrical).
   characterId: CharacterId,
   location: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("theme"), themeId: ThemeId, tagId: TagId }),
     z.object({ kind: z.literal("backpack"), tagId: TagId }),
+    z.object({
+      kind: z.literal("fellowship"),
+      campaignId: CampaignId,
+      tagId: TagId,
+    }),
   ]),
   patch: z.discriminatedUnion("kind", [
     z.object({
@@ -175,3 +192,145 @@ export const CommitRollInput = z.object({
   mightModifier: MightModifierSchema,
 });
 export type CommitRollInput = z.infer<typeof CommitRollInput>;
+
+export const AddStoryTagInput = z.object({
+  characterId: CharacterId,
+  name: z.string().min(1).max(60),
+  polarity: z.enum(["helpful", "hindering"]),
+  isSingleUse: z.boolean(),
+});
+export type AddStoryTagInput = z.infer<typeof AddStoryTagInput>;
+
+export const RemoveStoryTagInput = z.object({
+  characterId: CharacterId,
+  tagId: TagId,
+});
+export type RemoveStoryTagInput = z.infer<typeof RemoveStoryTagInput>;
+
+export const UpdateBackpackNotesInput = z.object({
+  characterId: CharacterId,
+  notes: z.string().max(2000),
+});
+export type UpdateBackpackNotesInput = z.infer<typeof UpdateBackpackNotesInput>;
+
+export const CreateCampaignInput = z.object({
+  name: z.string().min(1).max(80),
+  joinCharacterId: CharacterId.optional(),
+});
+export type CreateCampaignInput = z.infer<typeof CreateCampaignInput>;
+
+export const JoinCampaignInput = z.object({
+  characterId: CharacterId,
+  campaignId: CampaignId,
+});
+export type JoinCampaignInput = z.infer<typeof JoinCampaignInput>;
+
+export const LeaveCampaignInput = z.object({
+  characterId: CharacterId,
+  campaignId: CampaignId,
+});
+export type LeaveCampaignInput = z.infer<typeof LeaveCampaignInput>;
+
+export const CreateInvitationInput = z.object({
+  campaignId: CampaignId,
+  expiresInDays: z.number().int().min(1).max(30).default(7),
+});
+export type CreateInvitationInput = z.infer<typeof CreateInvitationInput>;
+
+export const RevokeInvitationInput = z.object({
+  invitationId: InvitationId,
+});
+export type RevokeInvitationInput = z.infer<typeof RevokeInvitationInput>;
+
+export const RedeemInvitationInput = z.object({
+  invitationId: InvitationId,
+  characterId: CharacterId,
+});
+export type RedeemInvitationInput = z.infer<typeof RedeemInvitationInput>;
+
+export const KickFromCampaignInput = z.object({
+  campaignId: CampaignId,
+  characterId: CharacterId,
+});
+export type KickFromCampaignInput = z.infer<typeof KickFromCampaignInput>;
+
+export const TransferGmInput = z.object({
+  campaignId: CampaignId,
+  newGmUid: z.string().min(1),
+});
+export type TransferGmInput = z.infer<typeof TransferGmInput>;
+
+export const RenameCampaignInput = z.object({
+  campaignId: CampaignId,
+  name: z.string().min(1).max(80),
+});
+export type RenameCampaignInput = z.infer<typeof RenameCampaignInput>;
+
+export const MutateFellowshipInput = z.object({
+  campaignId: CampaignId,
+  op: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("setName"),
+      name: z.string().min(1).max(60),
+    }),
+    z.object({
+      kind: z.literal("setQuest"),
+      quest: z.string().max(200),
+    }),
+    z.object({
+      kind: z.literal("addPowerTag"),
+      name: z.string().min(1).max(60),
+    }),
+    z.object({
+      kind: z.literal("removePowerTag"),
+      tagId: TagId,
+    }),
+    z.object({
+      kind: z.literal("renameWeakness"),
+      name: z.string().min(1).max(60),
+    }),
+    z.object({
+      kind: z.literal("markTrack"),
+      track: z.enum(["improve", "milestone", "abandon"]),
+      delta: z.union([z.literal(-1), z.literal(1)]),
+    }),
+    z.object({
+      kind: z.literal("addImprovement"),
+      text: z.string().min(1).max(120),
+    }),
+    z.object({
+      kind: z.literal("removeImprovement"),
+      index: z.number().int().nonnegative(),
+    }),
+    z.object({
+      kind: z.literal("editImprovement"),
+      index: z.number().int().nonnegative(),
+      text: z.string().min(1).max(120),
+    }),
+  ]),
+});
+export type MutateFellowshipInput = z.infer<typeof MutateFellowshipInput>;
+
+export const MutateRelationshipsInput = z.object({
+  characterId: CharacterId,
+  op: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("add"),
+      companionName: z.string().min(1).max(60),
+      companionCharId: CharacterId.nullable().default(null),
+      relationshipTag: z.string().min(1).max(60),
+      polarity: z.enum(["helpful", "hindering"]),
+    }),
+    z.object({
+      kind: z.literal("update"),
+      relationshipId: FellowshipRelationshipId,
+      relationshipTag: z.string().min(1).max(60).optional(),
+      polarity: z.enum(["helpful", "hindering"]).optional(),
+    }),
+    z.object({
+      kind: z.literal("remove"),
+      relationshipId: FellowshipRelationshipId,
+    }),
+  ]),
+});
+export type MutateRelationshipsInput = z.infer<typeof MutateRelationshipsInput>;

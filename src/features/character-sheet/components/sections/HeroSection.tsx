@@ -1,6 +1,7 @@
 "use client";
 import { Card, Skeleton, Track } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
+import { CampaignBadge } from "../campaign/campaign-badge";
 import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment-badge";
 
 export function HeroSection() {
@@ -65,7 +66,7 @@ export function HeroSection() {
                   {fellowship.relationships.map((rel) => (
                     <tr key={rel.id}>
                       <td className="py-3 text-ink-base dark:text-parchment-base">
-                        {rel.partnerName}
+                        {rel.companionName}
                       </td>
                       <td className="py-3 font-serif italic text-ink-muted dark:text-parchment-muted">
                         {rel.relationshipTag || "—"}
@@ -80,6 +81,8 @@ export function HeroSection() {
               </p>
             )}
           </div>
+
+          <CampaignBadge />
 
           <div className="flex flex-col gap-2">
             <Track total={5} filled={progression.promise} label="Promise" />

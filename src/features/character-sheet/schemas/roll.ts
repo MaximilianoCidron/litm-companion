@@ -1,9 +1,22 @@
 import { z } from "zod";
-import { CharacterId, RollId, StatusId, TagId, ThemeId } from "./ids";
+import {
+  CampaignId,
+  CharacterId,
+  FellowshipRelationshipId,
+  RollId,
+  StatusId,
+  TagId,
+  ThemeId,
+} from "./ids";
 
 export const TagLocationSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("theme"), themeId: ThemeId }),
   z.object({ kind: z.literal("backpack") }),
+  z.object({ kind: z.literal("fellowship"), campaignId: CampaignId }),
+  z.object({
+    kind: z.literal("relationship"),
+    relationshipId: FellowshipRelationshipId,
+  }),
 ]);
 export type TagLocation = z.infer<typeof TagLocationSchema>;
 

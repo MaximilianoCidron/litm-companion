@@ -10,6 +10,7 @@ export const FellowshipRelationshipId = z
   .min(1)
   .brand<"FellowshipRelationshipId">();
 export const RollId = z.string().min(1).brand<"RollId">();
+export const InvitationId = z.string().min(1).brand<"InvitationId">();
 
 export type CharacterId = z.infer<typeof CharacterId>;
 export type ThemeId = z.infer<typeof ThemeId>;
@@ -18,3 +19,4 @@ export type StatusId = z.infer<typeof StatusId>;
 export type CampaignId = z.infer<typeof CampaignId>;
 export type FellowshipRelationshipId = z.infer<typeof FellowshipRelationshipId>;
 export type RollId = z.infer<typeof RollId>;
+export type InvitationId = z.infer<typeof InvitationId>;

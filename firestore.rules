@@ -32,17 +32,17 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------
     // campaigns/{campaignId}
-    //   read: GM or any roster member
-    //   write: GM only
+    //   read: GM or any roster member (uid present in playerUids — a
+    //         denormalized array maintained by the campaign Server Actions)
+    //   write: forbidden — Server Actions via Admin SDK only.
     // ------------------------------------------------------------------
     match /campaigns/{campaignId} {
       allow read: if isSignedIn() && (
-        resource.data.gmId == request.auth.uid
-        || (resource.data.memberIds is list
-            && resource.data.memberIds.hasAny([request.auth.uid]))
+        resource.data.gmUid == request.auth.uid
+        || (resource.data.playerUids is list
+            && resource.data.playerUids.hasAny([request.auth.uid]))
       );
-      allow create: if isSignedIn() && request.resource.data.gmId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.gmId == request.auth.uid;
+      allow write: if false;
     }
 
     // ------------------------------------------------------------------
@@ -74,6 +74,22 @@ service cloud.firestore {
         );
         allow write: if false;
       }
+    }
+
+    // ------------------------------------------------------------------
+    // invitations/{invitationId}
+    //   get: any signed-in user (so they can land on /invite/[token]).
+    //   list: only allowed when filtering by campaignId AND the user is the
+    //         GM of that campaign. Combined with a where("campaignId", "==",
+    //         X) on the client this restricts enumeration to GMs.
+    //   write: forbidden — Server Actions via Admin SDK only.
+    // ------------------------------------------------------------------
+    match /invitations/{invitationId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn()
+        && resource.data.campaignId is string
+        && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmUid == request.auth.uid;
+      allow write: if false;
     }
 
     // ------------------------------------------------------------------

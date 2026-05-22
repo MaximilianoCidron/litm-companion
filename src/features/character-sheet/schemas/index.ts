@@ -6,6 +6,7 @@ export {
   CampaignId,
   FellowshipRelationshipId,
   RollId,
+  InvitationId,
 } from "./ids";
 
 export {
@@ -44,6 +45,22 @@ export type { Identity } from "./identity";
 export { FellowshipRelationshipSchema } from "./fellowship";
 export type { FellowshipRelationship } from "./fellowship";
 
+export {
+  FellowshipThemeSchema,
+  CampaignRosterEntrySchema,
+  CampaignSchema,
+  CampaignSummarySchema,
+} from "./campaign";
+export type {
+  FellowshipTheme,
+  CampaignRosterEntry,
+  Campaign,
+  CampaignSummary,
+} from "./campaign";
+
+export { InvitationStatusSchema, InvitationSchema } from "./invitation";
+export type { InvitationStatus, Invitation } from "./invitation";
+
 export { CharacterSchema, CharacterSummarySchema } from "./character";
 export type { Character, CharacterSummary } from "./character";
 
@@ -80,6 +97,20 @@ export {
   TagInvocationInputSchema,
   StatusInvocationInputSchema,
   CommitRollInput,
+  AddStoryTagInput,
+  RemoveStoryTagInput,
+  UpdateBackpackNotesInput,
+  CreateCampaignInput,
+  JoinCampaignInput,
+  LeaveCampaignInput,
+  MutateRelationshipsInput,
+  CreateInvitationInput,
+  RevokeInvitationInput,
+  RedeemInvitationInput,
+  KickFromCampaignInput,
+  TransferGmInput,
+  RenameCampaignInput,
+  MutateFellowshipInput,
 } from "./inputs";
 export type {
   TagInvocationInput,

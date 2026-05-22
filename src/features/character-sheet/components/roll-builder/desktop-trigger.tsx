@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Dices, Shield } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useCharacter } from "../CharacterProvider";
+import { useCampaign } from "../CampaignProvider";
 import { computePower } from "../../lib/power-calc";
 import {
   useInvokedStatuses,
@@ -19,6 +20,9 @@ import type {
 
 export function DesktopTrigger() {
   const { character } = useCharacter();
+  const campaign = useCampaign();
+  const liveCampaign =
+    campaign.status === "live" ? campaign.campaign : null;
   const invokedTags = useInvokedTags();
   const invokedStatuses = useInvokedStatuses();
   const mightModifier = useMightModifier();
@@ -36,8 +40,13 @@ export function DesktopTrigger() {
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
     ).map((id) => ({ statusId: id as StatusId }));
-    return computePower(character, { tags, statuses }, mightModifier).total;
-  }, [character, invokedTags, invokedStatuses, mightModifier]);
+    return computePower(
+      character,
+      liveCampaign,
+      { tags, statuses },
+      mightModifier,
+    ).total;
+  }, [character, liveCampaign, invokedTags, invokedStatuses, mightModifier]);
 
   const hasSelection =
     invokedTags.size > 0 || invokedStatuses.size > 0 || mightModifier !== 0;

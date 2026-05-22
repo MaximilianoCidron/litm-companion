@@ -2,21 +2,20 @@
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { Button, Tooltip, TooltipContent, TooltipTrigger, toast } from "@/shared/ui";
-import { addPowerTag } from "../../actions";
-import type { CharacterId, ThemeId } from "../../schemas";
+import type { ActionResult } from "@/shared/auth";
 
 const POWER_TAG_LIMIT = 12;
 
 interface PowerTagAdderProps {
-  characterId: CharacterId;
-  themeId: ThemeId;
+  /** Callback fired with the trimmed name. Returns the ActionResult so the
+   * adder can decide whether to reset on success or surface an error toast. */
+  onAdd: (name: string) => Promise<ActionResult<unknown>>;
   currentCount: number;
   disabled?: boolean;
 }
 
 export function PowerTagAdder({
-  characterId,
-  themeId,
+  onAdd,
   currentCount,
   disabled,
 }: PowerTagAdderProps) {
@@ -38,7 +37,7 @@ export function PowerTagAdder({
       return;
     }
     startTransition(async () => {
-      const result = await addPowerTag({ characterId, themeId, name: trimmed });
+      const result = await onAdd(trimmed);
       if (result.ok) {
         reset();
       } else {

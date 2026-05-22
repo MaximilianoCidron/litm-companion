@@ -1,4 +1,5 @@
 import type {
+  Campaign,
   Character,
   MightModifier,
   PowerTag,
@@ -39,16 +40,17 @@ type ResolveOk = { ok: true; resolved: ResolvedInvocations };
 type ResolveErr = { ok: false; reason: string };
 
 /**
- * Walk the requested invocations against the live character state, validate
- * each one is selectable, and produce the *resolved* shape (with snapshotted
- * names + polarities + signed contributions). Pure function — no I/O.
+ * Walk the requested invocations against live character + campaign state,
+ * validate each one, and produce the *resolved* shape with snapshotted
+ * names + polarities + signed contributions. Pure — no I/O.
  *
- * Status contribution rule: per polarity, the HIGHEST tier contributes its
- * signed tier (positive for helpful, negative for hindering); other invoked
- * statuses contribute 0 (still recorded for history).
+ * `campaign` is required only when fellowship invocations are present; pass
+ * `null` for purely character-scoped rolls. Burning is only valid for theme
+ * power tags. Fellowship weakness cannot be invoked from the roll builder.
  */
 export function resolveInvocations(
   character: Character,
+  campaign: Campaign | null,
   invocations: {
     tags: TagInvocationInput[];
     statuses: StatusInvocationInput[];
@@ -57,14 +59,12 @@ export function resolveInvocations(
   const tags: ResolvedTagInvocation[] = [];
 
   for (const inv of invocations.tags) {
-    if (inv.location.kind === "theme") {
-      const loc = inv.location;
+    const loc = inv.location;
+
+    if (loc.kind === "theme") {
       const theme = character.themes.find((t) => t.id === loc.themeId);
       if (!theme) {
-        return {
-          ok: false,
-          reason: `Theme ${loc.themeId} not found.`,
-        };
+        return { ok: false, reason: `Theme ${loc.themeId} not found.` };
       }
       const power: PowerTag | undefined = theme.powerTags.find(
         (t) => t.id === inv.tagId,
@@ -84,7 +84,7 @@ export function resolveInvocations(
         }
         tags.push({
           tagId: inv.tagId,
-          location: inv.location,
+          location: loc,
           name: power.name,
           tagKind: "power",
           polarity: "helpful",
@@ -97,14 +97,11 @@ export function resolveInvocations(
         theme.weaknessTag.id === inv.tagId ? theme.weaknessTag : undefined;
       if (weakness) {
         if (inv.burn) {
-          return {
-            ok: false,
-            reason: "Weakness tags cannot be burned.",
-          };
+          return { ok: false, reason: "Weakness tags cannot be burned." };
         }
         tags.push({
           tagId: inv.tagId,
-          location: inv.location,
+          location: loc,
           name: weakness.name,
           tagKind: "weakness",
           polarity: "hindering",
@@ -118,36 +115,108 @@ export function resolveInvocations(
         reason: `Tag ${inv.tagId} not found on theme "${theme.name}".`,
       };
     }
-    // backpack story tag
-    const story: StoryTag | undefined = character.backpack.storyTags.find(
-      (t) => t.id === inv.tagId,
-    );
-    if (!story) {
+
+    if (loc.kind === "backpack") {
+      const story: StoryTag | undefined = character.backpack.storyTags.find(
+        (t) => t.id === inv.tagId,
+      );
+      if (!story) {
+        return {
+          ok: false,
+          reason: `Story tag ${inv.tagId} not found in backpack.`,
+        };
+      }
+      if (story.scratched) {
+        return { ok: false, reason: `Story tag "${story.name}" is scratched.` };
+      }
+      if (inv.burn) {
+        return { ok: false, reason: "Story tags cannot be burned." };
+      }
+      tags.push({
+        tagId: inv.tagId,
+        location: loc,
+        name: story.name,
+        tagKind: "story",
+        polarity: story.polarity,
+        burned: false,
+        contribution: story.polarity === "helpful" ? 1 : -1,
+      });
+      continue;
+    }
+
+    if (loc.kind === "fellowship") {
+      if (inv.burn) {
+        return {
+          ok: false,
+          reason: "Fellowship tags cannot be burned.",
+        };
+      }
+      if (!campaign) {
+        return {
+          ok: false,
+          reason: "Fellowship invocation requires an active campaign.",
+        };
+      }
+      if (campaign.id !== loc.campaignId) {
+        return {
+          ok: false,
+          reason: "Fellowship campaign mismatch.",
+        };
+      }
+      const fellowship = campaign.fellowship;
+      const fellowshipPower = fellowship.powerTags.find(
+        (t) => t.id === inv.tagId,
+      );
+      if (fellowshipPower) {
+        // TODO(camp-rest-flow): scratch fellowship power tags on invocation;
+        // refresh at rest. v1 ignores per-tag exhaustion for shared resources.
+        tags.push({
+          tagId: inv.tagId,
+          location: loc,
+          name: fellowshipPower.name,
+          tagKind: "power",
+          polarity: "helpful",
+          burned: false,
+          contribution: 1,
+        });
+        continue;
+      }
+      if (fellowship.weaknessTag.id === inv.tagId) {
+        return {
+          ok: false,
+          reason: "Fellowship weakness cannot be invoked here.",
+        };
+      }
       return {
         ok: false,
-        reason: `Story tag ${inv.tagId} not found in backpack.`,
+        reason: `Fellowship tag ${inv.tagId} not found.`,
       };
     }
-    if (story.scratched) {
-      return {
-        ok: false,
-        reason: `Story tag "${story.name}" is scratched.`,
-      };
-    }
+
+    // relationship
     if (inv.burn) {
       return {
         ok: false,
-        reason: "Story tags cannot be burned.",
+        reason: "Relationship tags cannot be burned.",
+      };
+    }
+    const rel = character.fellowship.relationships.find(
+      (r) => r.id === loc.relationshipId,
+    );
+    if (!rel) {
+      return {
+        ok: false,
+        reason: `Relationship ${loc.relationshipId} not found.`,
       };
     }
     tags.push({
       tagId: inv.tagId,
-      location: inv.location,
-      name: story.name,
+      location: loc,
+      name: `${rel.companionName} · ${rel.relationshipTag}`,
       tagKind: "story",
-      polarity: story.polarity,
+      polarity: rel.polarity,
       burned: false,
-      contribution: story.polarity === "helpful" ? 1 : -1,
+      contribution: rel.polarity === "helpful" ? 1 : -1,
     });
   }
 
@@ -159,10 +228,7 @@ export function resolveInvocations(
   });
   for (const r of requested) {
     if (!r.status) {
-      return {
-        ok: false,
-        reason: `Status ${r.input.statusId} not found.`,
-      };
+      return { ok: false, reason: `Status ${r.input.statusId} not found.` };
     }
   }
 
@@ -176,14 +242,17 @@ export function resolveInvocations(
   const maxHindering =
     hinderingTiers.length > 0 ? Math.max(...hinderingTiers) : 0;
 
-  // Track whether we've already credited the max in each polarity (in case of ties).
   let helpfulCredited = false;
   let hinderingCredited = false;
 
   for (const r of requested) {
     const status = r.status!;
     let contribution = 0;
-    if (status.polarity === "helpful" && !helpfulCredited && status.tier === maxHelpful) {
+    if (
+      status.polarity === "helpful" &&
+      !helpfulCredited &&
+      status.tier === maxHelpful
+    ) {
       contribution = maxHelpful;
       helpfulCredited = true;
     } else if (
@@ -213,13 +282,14 @@ export function resolveInvocations(
  */
 export function computePower(
   character: Character,
+  campaign: Campaign | null,
   invocations: {
     tags: TagInvocationInput[];
     statuses: StatusInvocationInput[];
   },
   mightModifier: MightModifier,
 ): PowerBreakdown {
-  const resolved = resolveInvocations(character, invocations);
+  const resolved = resolveInvocations(character, campaign, invocations);
   if (!resolved.ok) {
     return { total: 0, items: [] };
   }
@@ -264,4 +334,3 @@ export function computePower(
   const total = items.reduce((acc, i) => acc + i.value, 0);
   return { total, items };
 }
-

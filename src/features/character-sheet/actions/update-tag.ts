@@ -7,7 +7,7 @@ import type {
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { UpdateTagInput, type UpdateTagInput as UpdateTagInputT } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { requireCampaignGm, requireCharacterAccess } from "../lib/access";
 
 interface UpdateTagResult {
   tagId: string;
@@ -36,12 +36,15 @@ export const updateTag = withAction(
     const db = getAdminDb();
 
     return db.runTransaction(async (tx) => {
+      if (input.location.kind === "fellowship") {
+        return applyToFellowship(input, ctx.uid, tx);
+      }
+
       const access = await requireCharacterAccess(
         input.characterId,
         ctx.uid,
         tx,
       );
-
       const data = access.snap.data() ?? {};
 
       if (input.location.kind === "theme") {
@@ -51,6 +54,60 @@ export const updateTag = withAction(
     });
   },
 );
+
+async function applyToFellowship(
+  input: UpdateTagInputT,
+  uid: string,
+  tx: Transaction,
+): Promise<UpdateTagResult> {
+  if (input.location.kind !== "fellowship") {
+    throw new Error("applyToFellowship: wrong location kind");
+  }
+  if (input.patch.kind === "scratch") {
+    // v1: fellowship tags don't track scratched/burned state — the camp/rest
+    // flow is deferred. Reject so callers know they shouldn't try.
+    throw new ActionError(
+      "INVALID_STATE",
+      "Fellowship tags don't support scratching yet.",
+    );
+  }
+
+  const { campaignId, tagId } = input.location;
+  const { snap } = await requireCampaignGm(campaignId, uid, tx);
+  const data = snap.data() ?? {};
+  const fellowship = (data.fellowship as Record<string, unknown>) ?? {};
+
+  const powerTags = Array.isArray(fellowship.powerTags)
+    ? [...(fellowship.powerTags as { id: string; name: string }[])]
+    : [];
+  const weakness = fellowship.weaknessTag as
+    | { id: string; name: string }
+    | undefined;
+  const powerIdx = powerTags.findIndex((t) => t.id === tagId);
+  const isWeakness = weakness?.id === tagId;
+
+  if (powerIdx === -1 && !isWeakness) {
+    throw new ActionError("NOT_FOUND", "Fellowship tag not found.");
+  }
+
+  let updatedFellowship: Record<string, unknown>;
+  if (powerIdx !== -1) {
+    const tag = { ...powerTags[powerIdx]!, name: input.patch.name };
+    powerTags[powerIdx] = tag;
+    updatedFellowship = { ...fellowship, powerTags };
+  } else {
+    updatedFellowship = {
+      ...fellowship,
+      weaknessTag: { ...weakness!, name: input.patch.name },
+    };
+  }
+
+  tx.update(snap.ref, {
+    fellowship: updatedFellowship,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return { tagId, newName: input.patch.name };
+}
 
 function applyToTheme(
   input: UpdateTagInputT,

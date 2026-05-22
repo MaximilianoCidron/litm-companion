@@ -10,50 +10,52 @@ import {
   toast,
 } from "@/shared/ui";
 import { cn } from "@/shared/lib/cn";
-import { mutateSpecialImprovements } from "../../actions";
-import type { CharacterId, ThemeId } from "../../schemas";
+import type { ActionResult } from "@/shared/auth";
 
 const LIMIT = 12;
 
+export type ImprovementEditFn = (
+  index: number,
+  text: string,
+) => Promise<ActionResult<unknown>>;
+export type ImprovementRemoveFn = (
+  index: number,
+) => Promise<ActionResult<unknown>>;
+export type ImprovementAddFn = (
+  text: string,
+) => Promise<ActionResult<unknown>>;
+
 interface SpecialImprovementsListProps {
-  characterId: CharacterId;
-  themeId: ThemeId;
   improvements: string[];
+  onAdd: ImprovementAddFn;
+  onEdit: ImprovementEditFn;
+  onRemove: ImprovementRemoveFn;
   disabled?: boolean;
 }
 
 function ExistingRow({
-  characterId,
-  themeId,
   index,
   text,
   disabled,
+  onEdit,
+  onRemove,
 }: {
-  characterId: CharacterId;
-  themeId: ThemeId;
   index: number;
   text: string;
   disabled: boolean;
+  onEdit: ImprovementEditFn;
+  onRemove: ImprovementRemoveFn;
 }) {
   const [pending, startTransition] = useTransition();
 
   const onCommit = useCallback(
-    (next: string) =>
-      mutateSpecialImprovements({
-        characterId,
-        themeId,
-        op: { kind: "edit", index, text: next },
-      }),
-    [characterId, themeId, index],
+    (next: string) => onEdit(index, next),
+    [index, onEdit],
   );
 
-  const onRemove = () => {
+  const handleRemove = () => {
     startTransition(async () => {
-      const result = await mutateSpecialImprovements({
-        characterId,
-        themeId,
-        op: { kind: "remove", index },
-      });
+      const result = await onRemove(index);
       if (!result.ok) {
         toast.error("Couldn't remove improvement", {
           description: result.error.message,
@@ -80,7 +82,7 @@ function ExistingRow({
       {!disabled ? (
         <button
           type="button"
-          onClick={onRemove}
+          onClick={handleRemove}
           disabled={pending}
           aria-label="Remove improvement"
           className={cn(
@@ -99,13 +101,11 @@ function ExistingRow({
 }
 
 function NewRow({
-  characterId,
-  themeId,
   onDone,
+  onAdd,
 }: {
-  characterId: CharacterId;
-  themeId: ThemeId;
   onDone: () => void;
+  onAdd: ImprovementAddFn;
 }) {
   const [draft, setDraft] = useState("");
   const [pending, startTransition] = useTransition();
@@ -117,11 +117,7 @@ function NewRow({
       return;
     }
     startTransition(async () => {
-      const result = await mutateSpecialImprovements({
-        characterId,
-        themeId,
-        op: { kind: "add", text: trimmed },
-      });
+      const result = await onAdd(trimmed);
       if (result.ok) {
         onDone();
       } else {
@@ -168,9 +164,10 @@ function NewRow({
 }
 
 export function SpecialImprovementsList({
-  characterId,
-  themeId,
   improvements,
+  onAdd,
+  onEdit,
+  onRemove,
   disabled = false,
 }: SpecialImprovementsListProps) {
   const [adding, setAdding] = useState(false);
@@ -195,19 +192,15 @@ export function SpecialImprovementsList({
         {improvements.map((text, i) => (
           <ExistingRow
             key={i}
-            characterId={characterId}
-            themeId={themeId}
             index={i}
             text={text}
             disabled={disabled}
+            onEdit={onEdit}
+            onRemove={onRemove}
           />
         ))}
         {adding ? (
-          <NewRow
-            characterId={characterId}
-            themeId={themeId}
-            onDone={() => setAdding(false)}
-          />
+          <NewRow onDone={() => setAdding(false)} onAdd={onAdd} />
         ) : null}
       </ul>
       {!adding && !disabled ? (

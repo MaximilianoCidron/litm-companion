@@ -3,12 +3,22 @@ import { FieldPath } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError } from "@/shared/auth";
 import {
+  CampaignId,
+  CampaignSummarySchema,
   CharacterSummarySchema,
+  InvitationId,
+  type Campaign,
+  type CampaignSummary,
   type Character,
   type CharacterSummary,
+  type Invitation,
 } from "../schemas";
-import { requireCharacterAccess } from "./access";
-import { firestoreToCharacter } from "./serialize";
+import { requireCampaignMembership, requireCharacterAccess } from "./access";
+import {
+  firestoreToCampaign,
+  firestoreToCharacter,
+  firestoreToInvitation,
+} from "./serialize";
 
 const FIRESTORE_IN_CAP = 30;
 
@@ -81,4 +91,134 @@ export async function getCharacter(
   }
   const character = firestoreToCharacter(snap);
   return { character, role };
+}
+
+/**
+ * Authorized read of a campaign doc. Access is granted to the GM, or to any
+ * user who owns a character in the campaign's `characterIds`. The client
+ * `onSnapshot` listener is backstopped by the `playerUids` field check in
+ * firestore.rules — server access uses Admin SDK and checks here.
+ */
+export async function getCampaign(
+  rawCampaignId: string,
+  uid: string,
+): Promise<Campaign> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  const db = getAdminDb();
+  const snap = await db.collection("campaigns").doc(campaignId).get();
+  if (!snap.exists) {
+    throw new ActionError("NOT_FOUND", "Campaign not found.");
+  }
+  const data = snap.data() ?? {};
+  if (data.gmUid !== uid) {
+    const playerUids = Array.isArray(data.playerUids)
+      ? (data.playerUids as string[])
+      : [];
+    if (!playerUids.includes(uid)) {
+      throw new ActionError("FORBIDDEN", "No access to that campaign.");
+    }
+  }
+  return firestoreToCampaign(snap);
+}
+
+/**
+ * Dashboard / campaigns list query — every campaign the user is a member of
+ * (GM or player). Ordered by recent activity.
+ *
+ * Requires composite index: campaigns (playerUids array-contains, updatedAt desc).
+ */
+export async function getMyCampaigns(uid: string): Promise<CampaignSummary[]> {
+  const db = getAdminDb();
+  const snap = await db
+    .collection("campaigns")
+    .where("playerUids", "array-contains", uid)
+    .orderBy("updatedAt", "desc")
+    .limit(20)
+    .get();
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return CampaignSummarySchema.parse({
+      id: d.id,
+      name: data.name,
+      gmUid: data.gmUid,
+      rosterCount: Array.isArray(data.roster) ? data.roster.length : 0,
+    });
+  });
+}
+
+/**
+ * Campaign page query — campaign doc + all member characters, authorized via
+ * membership (GM or player). Caller branches on `role` for GM-only UI.
+ */
+export async function getCampaignWithRoster(
+  rawCampaignId: string,
+  uid: string,
+): Promise<{
+  campaign: Campaign;
+  role: "gm" | "member";
+  characters: Character[];
+}> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  const { snap, role } = await requireCampaignMembership(campaignId, uid);
+  const campaign = firestoreToCampaign(snap);
+
+  let characters: Character[] = [];
+  const charIds = campaign.characterIds.slice(0, 10);
+  if (charIds.length > 0) {
+    const db = getAdminDb();
+    const charsSnap = await db
+      .collection("characters")
+      .where(FieldPath.documentId(), "in", charIds)
+      .get();
+    characters = charsSnap.docs.map((d) => firestoreToCharacter(d));
+  }
+  return { campaign, role, characters };
+}
+
+/**
+ * Look up an invitation by id. Used by /invite/[token] to render the
+ * redemption view. No auth check beyond signed-in — rules + the action
+ * gate the actual mutations.
+ */
+export async function getInvitation(
+  rawInvitationId: string,
+): Promise<Invitation> {
+  const invitationId = InvitationId.parse(rawInvitationId);
+  const db = getAdminDb();
+  const snap = await db.collection("invitations").doc(invitationId).get();
+  if (!snap.exists) {
+    throw new ActionError("NOT_FOUND", "Invitation not found.");
+  }
+  return firestoreToInvitation(snap);
+}
+
+/**
+ * Character page query that also fetches the active campaign (first
+ * entry in `character.campaignIds`). Gracefully degrades to `campaign: null`
+ * when the user has no access or the campaign is missing — the character
+ * sheet still loads.
+ */
+export async function getCharacterWithCampaign(
+  rawCharId: string,
+  uid: string,
+): Promise<{
+  character: Character;
+  role: "owner" | "gm";
+  campaign: Campaign | null;
+}> {
+  const { character, role } = await getCharacter(rawCharId, uid);
+  const campaignId = character.campaignIds[0];
+  if (!campaignId) return { character, role, campaign: null };
+  try {
+    const campaign = await getCampaign(campaignId, uid);
+    return { character, role, campaign };
+  } catch (err) {
+    if (
+      err instanceof ActionError &&
+      (err.code === "NOT_FOUND" || err.code === "FORBIDDEN")
+    ) {
+      return { character, role, campaign: null };
+    }
+    throw err;
+  }
 }

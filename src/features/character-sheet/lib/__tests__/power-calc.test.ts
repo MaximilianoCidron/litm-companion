@@ -3,16 +3,16 @@
  *
  *   node --test --experimental-strip-types src/features/character-sheet/lib/__tests__/power-calc.test.ts
  *
- * Uses Node's built-in test runner + assert. Zero deps. If a project-wide
- * test runner is added later (vitest, jest), these `describe`/`it` calls
- * are compatible with both.
+ * Uses Node's built-in test runner + assert. Zero deps.
  */
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { computePower, resolveInvocations } from "../power-calc";
 import type {
+  Campaign,
   Character,
+  FellowshipRelationship,
   PowerTag,
   Status,
   StoryTag,
@@ -44,12 +44,13 @@ function storyTag(
   name: string,
   polarity: "helpful" | "hindering",
   scratched = false,
+  isSingleUse = false,
 ): StoryTag {
   return {
     id: id as StoryTag["id"],
     name,
     polarity,
-    isSingleUse: false,
+    isSingleUse,
     scratched,
   };
 }
@@ -85,6 +86,8 @@ function character(
   themes: Theme[],
   storyTags: StoryTag[] = [],
   statuses: Status[] = [],
+  relationships: FellowshipRelationship[] = [],
+  campaignIds: Character["campaignIds"] = [],
 ): Character {
   const padded = [
     themes[0] ?? theme(),
@@ -95,7 +98,7 @@ function character(
   return {
     id: "char-1" as Character["id"],
     userId: "u1",
-    campaignIds: [],
+    campaignIds,
     identity: {
       name: "Test",
       concept: "",
@@ -108,7 +111,31 @@ function character(
     statuses,
     backpack: { storyTags, notes: "" },
     progression: { promise: 0, quintessences: [] },
-    fellowship: { relationships: [] },
+    fellowship: { relationships },
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
+function buildCampaign(
+  id: string,
+  powerTags: PowerTag[] = [],
+): Campaign {
+  return {
+    id: id as Campaign["id"],
+    name: "Test Fellowship",
+    gmUid: "gm",
+    fellowship: {
+      name: "Fellowship",
+      quest: "",
+      powerTags,
+      weaknessTag: weaknessTag("fwk1", "Fractured"),
+      specialImprovements: [],
+      tracks: { improve: 0, milestone: 0, abandon: 0 },
+    },
+    roster: [],
+    characterIds: [],
+    playerUids: [],
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -117,22 +144,17 @@ function character(
 describe("computePower", () => {
   it("1. empty invocations + Even Might => Power 0", () => {
     const c = character([]);
-    const result = computePower(
-      c,
-      { tags: [], statuses: [] },
-      0,
-    );
+    const result = computePower(c, null, { tags: [], statuses: [] }, 0);
     assert.equal(result.total, 0);
     assert.equal(result.items.length, 0);
   });
 
   it("2. single power tag invoked normally => +1", () => {
-    const t = theme({
-      powerTags: [powerTag("p1", "Strong arm")],
-    });
+    const t = theme({ powerTags: [powerTag("p1", "Strong arm")] });
     const c = character([t]);
     const result = computePower(
       c,
+      null,
       {
         tags: [
           {
@@ -153,6 +175,7 @@ describe("computePower", () => {
     const c = character([t]);
     const result = computePower(
       c,
+      null,
       {
         tags: [
           {
@@ -174,6 +197,7 @@ describe("computePower", () => {
     const c = character([t]);
     const result = computePower(
       c,
+      null,
       {
         tags: [
           {
@@ -200,6 +224,7 @@ describe("computePower", () => {
     );
     const result = computePower(
       c,
+      null,
       {
         tags: [],
         statuses: [
@@ -223,6 +248,7 @@ describe("computePower", () => {
     );
     const result = computePower(
       c,
+      null,
       {
         tags: [],
         statuses: [
@@ -243,6 +269,7 @@ describe("computePower", () => {
     );
     const result = computePower(
       c,
+      null,
       {
         tags: [
           {
@@ -260,7 +287,7 @@ describe("computePower", () => {
 
   it("8. Might modifier adds to total", () => {
     const c = character([]);
-    const result = computePower(c, { tags: [], statuses: [] }, 3);
+    const result = computePower(c, null, { tags: [], statuses: [] }, 3);
     assert.equal(result.total, 3);
     assert.equal(result.items.length, 1);
     assert.equal(result.items[0]?.label, "Favored");
@@ -271,6 +298,7 @@ describe("computePower", () => {
     const c = character([t], [], [status("s1", "Confident", 3, "helpful")]);
     const result = computePower(
       c,
+      null,
       {
         tags: [
           {
@@ -291,7 +319,7 @@ describe("computePower", () => {
       powerTags: [powerTag("p1", "Worn", { scratched: true })],
     });
     const c = character([t]);
-    const res = resolveInvocations(c, {
+    const res = resolveInvocations(c, null, {
       tags: [
         {
           tagId: "p1" as PowerTag["id"],
@@ -309,7 +337,7 @@ describe("computePower", () => {
       powerTags: [powerTag("p1", "Used", { burned: true, scratched: true })],
     });
     const c = character([t]);
-    const res = resolveInvocations(c, {
+    const res = resolveInvocations(c, null, {
       tags: [
         {
           tagId: "p1" as PowerTag["id"],
@@ -326,7 +354,7 @@ describe("computePower", () => {
     const wk = weaknessTag("wk1", "Stubborn");
     const t = theme({ weaknessTag: wk });
     const c = character([t]);
-    const res = resolveInvocations(c, {
+    const res = resolveInvocations(c, null, {
       tags: [
         {
           tagId: "wk1" as PowerTag["id"],
@@ -343,7 +371,7 @@ describe("computePower", () => {
     const wk = weaknessTag("wk1", "Stubborn");
     const t = theme({ weaknessTag: wk });
     const c = character([t]);
-    const res = resolveInvocations(c, {
+    const res = resolveInvocations(c, null, {
       tags: [
         {
           tagId: "wk1" as PowerTag["id"],
@@ -357,5 +385,169 @@ describe("computePower", () => {
     assert.equal(res.resolved.tags.length, 1);
     assert.equal(res.resolved.tags[0]?.tagKind, "weakness");
     assert.equal(res.resolved.tags[0]?.contribution, -1);
+  });
+
+  it("14. fellowship power tag contributes +1", () => {
+    const camp = buildCampaign("camp-1", [powerTag("fp1", "Bonded oath")]);
+    const c = character([], [], [], [], [camp.id]);
+    const result = computePower(
+      c,
+      camp,
+      {
+        tags: [
+          {
+            tagId: "fp1" as PowerTag["id"],
+            location: { kind: "fellowship", campaignId: camp.id },
+            burn: false,
+          },
+        ],
+        statuses: [],
+      },
+      0,
+    );
+    assert.equal(result.total, 1);
+  });
+
+  it("15. fellowship invocation without campaign rejected", () => {
+    const c = character([]);
+    const res = resolveInvocations(c, null, {
+      tags: [
+        {
+          tagId: "fp1" as PowerTag["id"],
+          location: {
+            kind: "fellowship",
+            campaignId: "camp-x" as Campaign["id"],
+          },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+  });
+
+  it("16. fellowship weakness cannot be invoked", () => {
+    const camp = buildCampaign("camp-2");
+    const c = character([], [], [], [], [camp.id]);
+    const res = resolveInvocations(c, camp, {
+      tags: [
+        {
+          tagId: "fwk1" as PowerTag["id"],
+          location: { kind: "fellowship", campaignId: camp.id },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+  });
+
+  it("17. helpful relationship contributes +1", () => {
+    const rel: FellowshipRelationship = {
+      id: "rel-1" as FellowshipRelationship["id"],
+      companionCharId: null,
+      companionName: "Sara",
+      relationshipTag: "sworn-friend",
+      polarity: "helpful",
+    };
+    const c = character([], [], [], [rel]);
+    const result = computePower(
+      c,
+      null,
+      {
+        tags: [
+          {
+            tagId: "rel-1" as PowerTag["id"],
+            location: { kind: "relationship", relationshipId: rel.id },
+            burn: false,
+          },
+        ],
+        statuses: [],
+      },
+      0,
+    );
+    assert.equal(result.total, 1);
+  });
+
+  it("18. hindering relationship contributes -1", () => {
+    const rel: FellowshipRelationship = {
+      id: "rel-2" as FellowshipRelationship["id"],
+      companionCharId: null,
+      companionName: "Mira",
+      relationshipTag: "indebted",
+      polarity: "hindering",
+    };
+    const c = character([], [], [], [rel]);
+    const result = computePower(
+      c,
+      null,
+      {
+        tags: [
+          {
+            tagId: "rel-2" as PowerTag["id"],
+            location: { kind: "relationship", relationshipId: rel.id },
+            burn: false,
+          },
+        ],
+        statuses: [],
+      },
+      0,
+    );
+    assert.equal(result.total, -1);
+  });
+
+  it("19. burning fellowship tag rejected", () => {
+    const camp = buildCampaign("camp-3", [powerTag("fp1", "Banner")]);
+    const c = character([], [], [], [], [camp.id]);
+    const res = resolveInvocations(c, camp, {
+      tags: [
+        {
+          tagId: "fp1" as PowerTag["id"],
+          location: { kind: "fellowship", campaignId: camp.id },
+          burn: true,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+  });
+
+  it("20. combined: theme power + fellowship power + helpful relationship + Favored", () => {
+    const camp = buildCampaign("camp-4", [powerTag("fp1", "Banner")]);
+    const t = theme({ powerTags: [powerTag("p1", "Quick")] });
+    const rel: FellowshipRelationship = {
+      id: "rel-3" as FellowshipRelationship["id"],
+      companionCharId: null,
+      companionName: "Jin",
+      relationshipTag: "trusted",
+      polarity: "helpful",
+    };
+    const c = character([t], [], [], [rel], [camp.id]);
+    const result = computePower(
+      c,
+      camp,
+      {
+        tags: [
+          {
+            tagId: "p1" as PowerTag["id"],
+            location: { kind: "theme", themeId: t.id },
+            burn: false,
+          },
+          {
+            tagId: "fp1" as PowerTag["id"],
+            location: { kind: "fellowship", campaignId: camp.id },
+            burn: false,
+          },
+          {
+            tagId: "rel-3" as PowerTag["id"],
+            location: { kind: "relationship", relationshipId: rel.id },
+            burn: false,
+          },
+        ],
+        statuses: [],
+      },
+      3,
+    );
+    assert.equal(result.total, 1 + 1 + 1 + 3);
   });
 });

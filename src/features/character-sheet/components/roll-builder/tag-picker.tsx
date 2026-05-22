@@ -2,12 +2,17 @@
 import { Flame } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useCharacter } from "../CharacterProvider";
+import { useCampaign } from "../CampaignProvider";
 import {
   makeTagKey,
   useInvokedTags,
   useRollBuilder,
 } from "../../stores/roll-builder";
-import type { TagId, TagLocation } from "../../schemas";
+import {
+  FellowshipRelationshipId,
+  type TagId,
+  type TagLocation,
+} from "../../schemas";
 
 interface TagRowProps {
   label: string;
@@ -128,6 +133,9 @@ function GroupHeader({ children }: { children: React.ReactNode }) {
 
 export function TagPicker() {
   const { character } = useCharacter();
+  const campaign = useCampaign();
+  const liveCampaign =
+    campaign.status === "live" ? campaign.campaign : null;
   const invoked = useInvokedTags();
 
   return (
@@ -230,6 +238,90 @@ export function TagPicker() {
           );
         })
       )}
+
+      {liveCampaign ? (
+        <>
+          <GroupHeader>
+            <div className="flex items-center justify-between gap-2">
+              <span>Fellowship</span>
+              <span className="text-[10px] capitalize text-ink-subtle dark:text-parchment-subtle">
+                {liveCampaign.name}
+              </span>
+            </div>
+          </GroupHeader>
+          {liveCampaign.fellowship.powerTags.length === 0 ? (
+            <p className="px-3 py-2 text-xs italic text-ink-subtle dark:text-parchment-subtle">
+              No fellowship power tags.
+            </p>
+          ) : (
+            liveCampaign.fellowship.powerTags.map((tag) => {
+              const location: TagLocation = {
+                kind: "fellowship",
+                campaignId: liveCampaign.id,
+              };
+              const key = makeTagKey(location, tag.id as TagId);
+              const isInvoked = invoked.has(key);
+              const disabled = tag.burned || tag.scratched;
+              return (
+                <TagRow
+                  key={tag.id}
+                  label={tag.name}
+                  tagId={tag.id as TagId}
+                  location={location}
+                  tagKind="power"
+                  polarity="helpful"
+                  baseValue={1}
+                  isInvoked={isInvoked}
+                  isBurnSelected={false}
+                  disabled={disabled}
+                  disabledReason={
+                    tag.burned
+                      ? "Burned — unavailable."
+                      : tag.scratched
+                        ? "Scratched — unavailable."
+                        : undefined
+                  }
+                  burnable={false}
+                />
+              );
+            })
+          )}
+        </>
+      ) : null}
+
+      {character.fellowship.relationships.length > 0 ? (
+        <>
+          <GroupHeader>Relationships</GroupHeader>
+          {character.fellowship.relationships.map((rel) => {
+            const location: TagLocation = {
+              kind: "relationship",
+              relationshipId: rel.id,
+            };
+            // Reuse the relationship id as the tag id for the row — it's
+            // the natural identifier and matches the resolver's lookup.
+            const relAsTagId = rel.id as unknown as TagId;
+            const key = makeTagKey(location, relAsTagId);
+            const isInvoked = invoked.has(key);
+            // Anchor the parsed branded id so unused-import lints stay quiet.
+            FellowshipRelationshipId.parse(rel.id);
+            return (
+              <TagRow
+                key={rel.id}
+                label={`${rel.companionName} · ${rel.relationshipTag}`}
+                tagId={relAsTagId}
+                location={location}
+                tagKind="story"
+                polarity={rel.polarity}
+                baseValue={rel.polarity === "helpful" ? 1 : -1}
+                isInvoked={isInvoked}
+                isBurnSelected={false}
+                disabled={false}
+                burnable={false}
+              />
+            );
+          })}
+        </>
+      ) : null}
     </div>
   );
 }

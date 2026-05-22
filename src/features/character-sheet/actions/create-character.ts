@@ -42,11 +42,14 @@ export const createCharacter = withAction(
       batch.update(campaignRef, {
         characterIds: FieldValue.arrayUnion(docRef.id),
         roster: FieldValue.arrayUnion({
-          charId: docRef.id,
-          name: input.name,
+          characterId: docRef.id,
+          characterName: input.name,
+          playerUid: ctx.uid,
           avatarUrl: null,
-          concept: input.concept ?? "",
+          joinedAt: new Date().toISOString(),
         }),
+        playerUids: FieldValue.arrayUnion(ctx.uid),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
 

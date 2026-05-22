@@ -9,6 +9,8 @@ export { ThemeCard } from "./components/theme-card";
 
 export { CharacterProvider, useCharacter } from "./components/CharacterProvider";
 export type { CharacterRole } from "./components/CharacterProvider";
+export { CampaignProvider, useCampaign } from "./components/CampaignProvider";
+export { RosterProvider, useRoster } from "./components/RosterProvider";
 export { CharacterHeader } from "./components/CharacterHeader";
 export { ConnectionBanner } from "./components/ConnectionBanner";
 
@@ -21,7 +23,15 @@ export { StatusesSection } from "./components/sections/StatusesSection";
 export { useCharacterSnapshot } from "./hooks/use-character-snapshot";
 export type { CharacterSnapshotState } from "./hooks/use-character-snapshot";
 
-export { getMyCharacters, getCharacter } from "./lib/queries";
+export {
+  getMyCharacters,
+  getCharacter,
+  getCampaign,
+  getCharacterWithCampaign,
+  getMyCampaigns,
+  getCampaignWithRoster,
+  getInvitation,
+} from "./lib/queries";
 
 export * from "./schemas";
 export * from "./actions";
