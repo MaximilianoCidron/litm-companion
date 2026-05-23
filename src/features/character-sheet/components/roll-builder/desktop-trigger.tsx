@@ -14,7 +14,6 @@ import {
 } from "../../stores/roll-builder";
 import type {
   StatusInvocationInput,
-  StatusId,
   TagInvocationInput,
 } from "../../schemas";
 
@@ -41,7 +40,7 @@ export function DesktopTrigger() {
     );
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
-    ).map((id) => ({ statusId: id as StatusId }));
+    ).map((entry) => ({ statusId: entry.statusId, location: entry.location }));
     const engagedMap = new Map(engagedChallenges.map((e) => [e.id, e]));
     return computePower(
       character,

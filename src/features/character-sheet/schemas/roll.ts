@@ -6,6 +6,7 @@ import {
   FellowshipRelationshipId,
   PendingThreatId,
   RollId,
+  SessionId,
   StatusId,
   TagId,
   ThemeId,
@@ -29,6 +30,16 @@ export const TagLocationSchema = z.discriminatedUnion("kind", [
 ]);
 export type TagLocation = z.infer<typeof TagLocationSchema>;
 
+export const StatusLocationSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("character") }),
+  z.object({
+    kind: z.literal("challenge"),
+    campaignId: CampaignId,
+    challengeId: ChallengeId,
+  }),
+]);
+export type StatusLocation = z.infer<typeof StatusLocationSchema>;
+
 export const ResolvedTagInvocationSchema = z.object({
   tagId: TagId,
   location: TagLocationSchema,
@@ -46,6 +57,9 @@ export const ResolvedStatusInvocationSchema = z.object({
   tier: z.number().int().min(1).max(6),
   polarity: z.enum(["helpful", "hindering"]),
   contribution: z.number().int(),
+  // Origin of the invoked status. Default for legacy roll records (pre-prompt 20)
+  // is injected by `firestoreToRollRecord` so this schema reads non-default.
+  location: StatusLocationSchema,
 });
 export type ResolvedStatusInvocation = z.infer<
   typeof ResolvedStatusInvocationSchema
@@ -62,6 +76,13 @@ export type MightModifier = z.infer<typeof MightModifierSchema>;
 
 export const RollTierSchema = z.enum(["success", "mixed", "failure"]);
 export type RollTier = z.infer<typeof RollTierSchema>;
+
+export const DetailedActionTargetSchema = z.object({
+  campaignId: CampaignId,
+  challengeId: ChallengeId,
+  challengeName: z.string(),
+});
+export type DetailedActionTarget = z.infer<typeof DetailedActionTargetSchema>;
 
 export const RollRecordSchema = z.object({
   id: RollId,
@@ -87,5 +108,15 @@ export const RollRecordSchema = z.object({
     })
     .nullable()
     .default(null),
+  // Tagged with active session at commit time. Pre-prompt-18 rolls parse
+  // as null and don't appear in per-session collection-group queries.
+  sessionId: SessionId.nullable().default(null),
+  // Detailed action — player declares the roll as targeting a specific
+  // engaged challenge, then allocates Power across its exposed limits in a
+  // post-commit step. Mutually exclusive with isReaction. Legacy rolls
+  // parse as false/null/false.
+  isDetailedAction: z.boolean().default(false),
+  detailedActionTarget: DetailedActionTargetSchema.nullable().default(null),
+  limitAllocationApplied: z.boolean().default(false),
 });
 export type RollRecord = z.infer<typeof RollRecordSchema>;

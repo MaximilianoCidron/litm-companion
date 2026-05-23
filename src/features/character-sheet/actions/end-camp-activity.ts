@@ -7,6 +7,7 @@ import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 import { firestoreToCharacter } from "../lib/serialize";
 import {
   getAuthorDisplayName,
+  resolveActiveSessionId,
   summarizeCampActivity,
   writeLogEntry,
 } from "../lib/session-log";
@@ -35,6 +36,13 @@ export const endCampActivity = withAction(
       );
       assertNotRetired(snap.data() ?? {}); // retired-character guard
       const character = firestoreToCharacter(snap);
+
+      // Pre-resolve active session in the read phase (Firestore tx requires
+      // all reads before any writes).
+      const logCampaignId = character.campaignIds[0] ?? null;
+      const sessionId = logCampaignId
+        ? await resolveActiveSessionId(tx, logCampaignId)
+        : null;
 
       // 1. Refresh non-burned power tags across all themes.
       //    burning is more permanent than scratching — survives camp.
@@ -104,7 +112,6 @@ export const endCampActivity = withAction(
       });
 
       // Session log: only when the hero is in a campaign.
-      const logCampaignId = character.campaignIds[0] ?? null;
       if (logCampaignId) {
         const reflectThemeId =
           input.activity.kind === "reflect" ? input.activity.themeId : undefined;
@@ -133,6 +140,7 @@ export const endCampActivity = withAction(
             themeId: reflectThemeId,
             themeName: reflectThemeName,
           },
+          sessionId,
         });
       } else {
         // eslint-disable-next-line no-console

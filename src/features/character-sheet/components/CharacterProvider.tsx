@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { useCharacterSnapshot } from "../hooks/use-character-snapshot";
 import { useRollBuilder } from "../stores/roll-builder";
+import { usePresenceStore } from "../stores/presence";
 import type { Character } from "../schemas";
 
 export type CharacterRole = "owner" | "gm";
@@ -34,6 +35,15 @@ export function CharacterProvider({
   // would otherwise carry over stale selections from a different sheet.
   useEffect(() => {
     useRollBuilder.getState().reset();
+  }, [initial.id]);
+
+  // Register the current character with the presence store so heartbeats
+  // carry the right context. Clear on unmount so navigation away resets it.
+  useEffect(() => {
+    usePresenceStore.getState().setCurrentCharacter(initial.id);
+    return () => {
+      usePresenceStore.getState().setCurrentCharacter(null);
+    };
   }, [initial.id]);
 
   const isRetired = character.status === "retired";

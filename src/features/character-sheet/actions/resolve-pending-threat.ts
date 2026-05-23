@@ -13,6 +13,7 @@ import {
   firestoreToPendingThreat,
 } from "../lib/serialize";
 import {
+  activeSessionIdFrom,
   getAuthorDisplayName,
   summarizeReactionResolution,
   writeLogEntry,
@@ -281,6 +282,7 @@ export const resolvePendingThreat = withAction(
           consequenceKind: cons.kind,
           consequenceSummary: logSummary,
         },
+        sessionId: activeSessionIdFrom(campSnap.data() ?? undefined),
       });
 
       return {

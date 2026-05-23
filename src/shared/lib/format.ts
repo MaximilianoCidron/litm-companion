@@ -1,5 +1,16 @@
 const RTF = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
+/** "3h 42m" / "0h 04m" / "12m" / "0s" for sub-minute. */
+export function formatDuration(ms: number): string {
+  if (ms < 0) return "0s";
+  if (ms < 60000) return `${Math.floor(ms / 1000)}s`;
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+}
+
 export function formatRelativeTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";

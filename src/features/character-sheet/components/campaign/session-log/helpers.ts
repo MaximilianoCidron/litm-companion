@@ -1,9 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Flag,
   MessageSquare,
   ScrollText,
   Sparkles,
   Sword,
+  Target,
   Tent,
   TrendingUp,
 } from "lucide-react";
@@ -15,7 +17,9 @@ export type LogFilter =
   | "campAction"
   | "deliverThreat"
   | "themeAdvancement"
-  | "momentOfFulfillment";
+  | "momentOfFulfillment"
+  | "sessionBoundary"
+  | "limitAdvancement";
 
 export type LogFilterCounts = Record<LogFilter, number>;
 
@@ -37,6 +41,8 @@ export function summarizeCounts(
     deliverThreat: 0,
     themeAdvancement: 0,
     momentOfFulfillment: 0,
+    sessionBoundary: 0,
+    limitAdvancement: 0,
   };
   for (const e of entries) counts[e.details.kind] += 1;
   return counts;
@@ -81,6 +87,18 @@ const KIND_META: Record<SessionLogDetails["kind"], KindMeta> = {
     label: "Moment",
     accent: "border-l-4 border-ember",
     badge: "bg-ember/15 text-ember-text-light dark:text-ember-text-dark",
+  },
+  sessionBoundary: {
+    Icon: Flag,
+    label: "Session",
+    accent: "border-l-4 border-ember",
+    badge: "bg-ember/15 text-ember-text-light dark:text-ember-text-dark",
+  },
+  limitAdvancement: {
+    Icon: Target,
+    label: "Limit progress",
+    accent: "border-l-4 border-rust",
+    badge: "bg-rust-soft text-rust-text dark:bg-rust-soft-dark dark:text-rust-text-dark",
   },
 };
 

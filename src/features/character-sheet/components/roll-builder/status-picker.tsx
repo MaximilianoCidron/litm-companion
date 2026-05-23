@@ -1,30 +1,38 @@
 "use client";
 import { cn } from "@/shared/lib/cn";
 import { useCharacter } from "../CharacterProvider";
+import { useCampaign } from "../CampaignProvider";
 import {
+  makeStatusKey,
   useInvokedStatuses,
   useRollBuilder,
+  type InvokedStatusEntry,
+  type StatusInvocationKey,
 } from "../../stores/roll-builder";
-import type { Status, StatusId } from "../../schemas";
+import type { Status, StatusId, StatusLocation } from "../../schemas";
 
 function StatusRow({
   status,
+  location,
   isInvoked,
   isHighest,
 }: {
   status: Status;
+  location: StatusLocation;
   isInvoked: boolean;
   isHighest: boolean;
 }) {
   const toggleStatus = useRollBuilder((s) => s.toggleStatus);
   const helpful = status.polarity === "helpful";
   const signedTier = helpful ? status.tier : -status.tier;
+  const key = makeStatusKey(location, status.id as StatusId);
+  const entry: InvokedStatusEntry = { statusId: status.id as StatusId, location };
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={isInvoked}
-      onClick={() => toggleStatus(status.id as StatusId)}
+      onClick={() => toggleStatus(key, entry)}
       className={cn(
         "flex w-full items-center gap-3 px-3 py-2 text-left transition-colors",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-ember",
@@ -81,73 +89,111 @@ function GroupHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
+function renderStatusGroup(
+  statuses: readonly Status[],
+  locationFor: (s: Status) => StatusLocation,
+  invoked: Map<StatusInvocationKey, InvokedStatusEntry>,
+  polarity: "helpful" | "hindering",
+) {
+  const filtered = statuses.filter((s) => s.polarity === polarity);
+  if (filtered.length === 0) return null;
+  const invokedTiers = filtered
+    .filter((s) =>
+      invoked.has(makeStatusKey(locationFor(s), s.id as StatusId)),
+    )
+    .map((s) => s.tier);
+  const max = invokedTiers.length > 0 ? Math.max(...invokedTiers) : 0;
+  let highestSeen = false;
+  return filtered.map((s) => {
+    const location = locationFor(s);
+    const key = makeStatusKey(location, s.id as StatusId);
+    const isInvoked = invoked.has(key);
+    const isHighest = isInvoked && s.tier === max && !highestSeen;
+    if (isHighest) highestSeen = true;
+    return (
+      <StatusRow
+        key={key}
+        status={s}
+        location={location}
+        isInvoked={isInvoked}
+        isHighest={isHighest}
+      />
+    );
+  });
+}
+
 export function StatusPicker() {
   const { character } = useCharacter();
+  const campaign = useCampaign();
   const invoked = useInvokedStatuses();
 
-  const helpful = character.statuses.filter((s) => s.polarity === "helpful");
-  const hindering = character.statuses.filter(
-    (s) => s.polarity === "hindering",
+  const characterLocation: StatusLocation = { kind: "character" };
+  const characterHelpful = renderStatusGroup(
+    character.statuses,
+    () => characterLocation,
+    invoked,
+    "helpful",
+  );
+  const characterHindering = renderStatusGroup(
+    character.statuses,
+    () => characterLocation,
+    invoked,
+    "hindering",
   );
 
-  const invokedHelpfulTiers = helpful
-    .filter((s) => invoked.has(s.id as StatusId))
-    .map((s) => s.tier);
-  const invokedHinderingTiers = hindering
-    .filter((s) => invoked.has(s.id as StatusId))
-    .map((s) => s.tier);
-  const maxHelpful =
-    invokedHelpfulTiers.length > 0 ? Math.max(...invokedHelpfulTiers) : 0;
-  const maxHindering =
-    invokedHinderingTiers.length > 0 ? Math.max(...invokedHinderingTiers) : 0;
-
-  let helpfulHighestSeen = false;
-  let hinderingHighestSeen = false;
+  const challengesWithStatuses =
+    campaign.status !== "none"
+      ? campaign.engagedChallenges.filter((c) => c.statuses.length > 0)
+      : [];
 
   return (
     <div className="flex flex-col">
       <GroupHeader>Helpful statuses</GroupHeader>
-      {helpful.length === 0 ? (
+      {characterHelpful === null ? (
         <p className="px-3 py-2 text-xs italic text-ink-subtle dark:text-parchment-subtle">
           None active.
         </p>
       ) : (
-        helpful.map((s) => {
-          const isInvoked = invoked.has(s.id as StatusId);
-          const isHighest =
-            isInvoked && s.tier === maxHelpful && !helpfulHighestSeen;
-          if (isHighest) helpfulHighestSeen = true;
-          return (
-            <StatusRow
-              key={s.id}
-              status={s}
-              isInvoked={isInvoked}
-              isHighest={isHighest}
-            />
-          );
-        })
+        characterHelpful
       )}
       <GroupHeader>Hindering statuses</GroupHeader>
-      {hindering.length === 0 ? (
+      {characterHindering === null ? (
         <p className="px-3 py-2 text-xs italic text-ink-subtle dark:text-parchment-subtle">
           None active.
         </p>
       ) : (
-        hindering.map((s) => {
-          const isInvoked = invoked.has(s.id as StatusId);
-          const isHighest =
-            isInvoked && s.tier === maxHindering && !hinderingHighestSeen;
-          if (isHighest) hinderingHighestSeen = true;
-          return (
-            <StatusRow
-              key={s.id}
-              status={s}
-              isInvoked={isInvoked}
-              isHighest={isHighest}
-            />
-          );
-        })
+        characterHindering
       )}
+      {challengesWithStatuses.map((challenge) => {
+        const locationFor = (): StatusLocation => ({
+          kind: "challenge",
+          campaignId: challenge.campaignId,
+          challengeId: challenge.id,
+        });
+        const helpful = renderStatusGroup(
+          challenge.statuses,
+          locationFor,
+          invoked,
+          "helpful",
+        );
+        const hindering = renderStatusGroup(
+          challenge.statuses,
+          locationFor,
+          invoked,
+          "hindering",
+        );
+        return (
+          <div key={challenge.id} className="flex flex-col">
+            <GroupHeader>
+              <div className="flex items-center justify-between gap-2">
+                <span>{challenge.name} · statuses</span>
+              </div>
+            </GroupHeader>
+            {helpful}
+            {hindering}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { Button, ConfirmDialog } from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import { resolvePendingThreat } from "../../actions";
 import { useRollBuilder } from "../../stores/roll-builder";
+import { usePresenceOne } from "../../hooks/use-presence";
+import { PresenceDot } from "../presence/presence-dot";
 import type { PendingThreat } from "../../schemas";
 import { consequenceLabel } from "./helpers";
 
@@ -16,6 +18,7 @@ interface ReactionDecisionProps {
 export function ReactionDecision({ threat }: ReactionDecisionProps) {
   const callAction = useActionWithToast();
   const [pending, startTransition] = useTransition();
+  const gmPresence = usePresenceOne(threat.initiatedByUid);
 
   const onRoll = () => {
     useRollBuilder
@@ -47,6 +50,10 @@ export function ReactionDecision({ threat }: ReactionDecisionProps) {
         <p className="font-display text-sm">
           Incoming consequence: {consequenceLabel(threat.consequence)}
         </p>
+      </div>
+      <div className="inline-flex items-center gap-1.5 text-xs text-ink-muted dark:text-parchment-muted">
+        <PresenceDot uid={threat.initiatedByUid} />
+        {gmPresence.isOnline ? "GM is here" : "GM stepped away"}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button

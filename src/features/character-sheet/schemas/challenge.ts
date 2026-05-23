@@ -100,6 +100,9 @@ export const ChallengeSchema = z.object({
   // `campaigns/{cid}/engagedChallenges/{cid}` exposes name + tags to players.
   // Legacy docs without the field parse as false.
   engaged: z.boolean().default(false),
+  // Sub-toggles: tags are always exposed when engaged; statuses + limits opt-in.
+  exposeStatuses: z.boolean().default(false),
+  exposeLimits: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -110,6 +113,10 @@ export const EngagedChallengeSchema = z.object({
   campaignId: CampaignId,
   name: z.string().min(1).max(80),
   tags: z.array(ChallengeTagSchema).max(20),
+  // Populated only when the source has exposeStatuses/exposeLimits true.
+  // Defaults keep legacy mirrors (prompt 14) parseable.
+  statuses: z.array(StatusSchema).max(20).default([]),
+  limits: z.array(ChallengeLimitSchema).max(10).default([]),
   updatedAt: z.string().datetime(),
 });
 export type EngagedChallenge = z.infer<typeof EngagedChallengeSchema>;

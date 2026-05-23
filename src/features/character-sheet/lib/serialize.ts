@@ -5,15 +5,19 @@ import {
   EngagedChallengeSchema,
   InvitationSchema,
   PendingThreatSchema,
+  PresenceDocSchema,
   RollRecordSchema,
   SessionLogEntrySchema,
+  SessionSchema,
   type Campaign,
   type Challenge,
   type Character,
   type EngagedChallenge,
   type Invitation,
   type PendingThreat,
+  type PresenceDoc,
   type RollRecord,
+  type Session,
   type SessionLogEntry,
 } from "../schemas";
 
@@ -125,13 +129,22 @@ export function firestoreToInvitation(snap: SnapshotLike): Invitation {
   if (!data) {
     throw new Error(`Invitation ${snap.id} not found.`);
   }
-  return InvitationSchema.parse({
+  // Legacy invitations (pre-directed-flow) lack the `kind` discriminator —
+  // they were all token-based. Inject "token" so the union parses.
+  const normalized = {
     ...data,
     id: snap.id,
+    kind:
+      typeof data.kind === "string"
+        ? data.kind
+        : data.directedAtUid
+          ? "directed"
+          : "token",
     createdAt: toIso(data.createdAt),
     expiresAt: toIso(data.expiresAt),
     consumedAt: toIsoNullable(data.consumedAt),
-  });
+  };
+  return InvitationSchema.parse(normalized);
 }
 
 /**
@@ -146,10 +159,22 @@ export function firestoreToRollRecord(snap: SnapshotLike): RollRecord {
   if (!data) {
     throw new Error(`Roll ${snap.id} not found.`);
   }
+  // Legacy roll records (pre-prompt 20) wrote resolved.statuses without
+  // a `location` field. Inject `{ kind: "character" }` so the schema parses.
+  const resolved = (data.resolved as Record<string, unknown> | undefined) ?? {};
+  const resolvedStatuses = Array.isArray(resolved.statuses)
+    ? (resolved.statuses as Array<Record<string, unknown>>).map((s) =>
+        s.location ? s : { ...s, location: { kind: "character" } },
+      )
+    : [];
   return RollRecordSchema.parse({
     ...data,
     id: snap.id,
     createdAt: toIso(data.createdAt),
+    resolved: {
+      ...resolved,
+      statuses: resolvedStatuses,
+    },
   });
 }
 
@@ -198,6 +223,23 @@ export function firestoreToEngagedChallenge(snap: SnapshotLike): EngagedChalleng
  * Convert a Firestore pendingThreat snapshot
  * (`campaigns/{cid}/pendingThreats/{ptId}`) to the validated wire shape.
  */
+/**
+ * Convert a Firestore session snapshot
+ * (`campaigns/{cid}/sessions/{sid}`) to the validated wire shape.
+ */
+export function firestoreToSession(snap: SnapshotLike): Session {
+  const data = snap.data();
+  if (!data) {
+    throw new Error(`Session ${snap.id} not found.`);
+  }
+  return SessionSchema.parse({
+    ...data,
+    id: snap.id,
+    startedAt: toIso(data.startedAt),
+    endedAt: data.endedAt ? toIso(data.endedAt) : null,
+  });
+}
+
 export function firestoreToPendingThreat(snap: SnapshotLike): PendingThreat {
   const data = snap.data();
   if (!data) {
@@ -208,6 +250,21 @@ export function firestoreToPendingThreat(snap: SnapshotLike): PendingThreat {
     id: snap.id,
     createdAt: toIso(data.createdAt),
     resolvedAt: data.resolvedAt ? toIso(data.resolvedAt) : null,
+  });
+}
+
+/**
+ * Convert a Firestore presence snapshot (`presence/{uid}`) to the validated
+ * wire shape. Returns null when the doc doesn't exist — many users won't
+ * have a presence doc until their first heartbeat lands.
+ */
+export function firestoreToPresence(snap: SnapshotLike): PresenceDoc | null {
+  const data = snap.data();
+  if (!data) return null;
+  return PresenceDocSchema.parse({
+    ...data,
+    uid: snap.id,
+    lastSeenAt: toIso(data.lastSeenAt),
   });
 }
 

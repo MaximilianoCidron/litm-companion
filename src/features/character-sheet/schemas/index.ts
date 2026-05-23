@@ -12,6 +12,7 @@ export {
   LimitId,
   SessionLogEntryId,
   PendingThreatId,
+  SessionId,
 } from "./ids";
 
 export {
@@ -129,21 +130,31 @@ export type {
   PendingThreat,
 } from "./pending-threat";
 
+export { SessionSchema } from "./session";
+export type { Session } from "./session";
+
+export { PresenceDocSchema } from "./presence";
+export type { PresenceDoc } from "./presence";
+
 export {
   TagLocationSchema,
+  StatusLocationSchema,
   ResolvedTagInvocationSchema,
   ResolvedStatusInvocationSchema,
   MightModifierSchema,
   RollTierSchema,
   RollRecordSchema,
+  DetailedActionTargetSchema,
 } from "./roll";
 export type {
   TagLocation,
+  StatusLocation,
   ResolvedTagInvocation,
   ResolvedStatusInvocation,
   MightModifier,
   RollTier,
   RollRecord,
+  DetailedActionTarget,
 } from "./roll";
 
 export {
@@ -189,6 +200,14 @@ export {
   OfferReactionForThreatInput,
   ResolvePendingThreatInput,
   CancelPendingThreatInput,
+  StartSessionInput,
+  EndSessionInput,
+  FetchEndOfSessionSummaryInput,
+  PingPresenceInput,
+  CreateDirectedInvitationInput,
+  RedeemDirectedInvitationInput,
+  DeclineDirectedInvitationInput,
+  AllocateLimitProgressInput,
 } from "./inputs";
 export type {
   TagInvocationInput,

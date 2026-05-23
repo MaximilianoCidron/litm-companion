@@ -20,7 +20,8 @@ import {
   useResultDialogRollId,
   useRollBuilder,
 } from "../../stores/roll-builder";
-import type { RollRecord } from "../../schemas";
+import { RollRecordSchema, type RollRecord } from "../../schemas";
+import { AllocationStep } from "./allocation-step";
 
 function tierTheme(tier: RollRecord["tier"]) {
   if (tier === "success") {
@@ -83,7 +84,7 @@ function Die({
 }
 
 export function RollResultDialog() {
-  const { character } = useCharacter();
+  const { character, role } = useCharacter();
   const rollId = useResultDialogRollId();
   const animate = useResultDialogAnimate();
   const closeResultDialog = useRollBuilder((s) => s.closeResultDialog);
@@ -115,7 +116,29 @@ export function RollResultDialog() {
         raw.createdAt && typeof raw.createdAt.toDate === "function"
           ? raw.createdAt.toDate().toISOString()
           : new Date().toISOString();
-      setRoll({ ...raw, createdAt } as RollRecord);
+      // Round-trip through Zod so .default() values materialize for
+      // post-commit field reads (isDetailedAction, limitAllocationApplied,
+      // etc.). Legacy rolls missing the new fields parse cleanly.
+      const resolved = (raw.resolved as Record<string, unknown> | undefined) ?? {};
+      const resolvedStatuses = Array.isArray(resolved.statuses)
+        ? (resolved.statuses as Array<Record<string, unknown>>).map((s) =>
+            s.location ? s : { ...s, location: { kind: "character" } },
+          )
+        : [];
+      const parsed = RollRecordSchema.safeParse({
+        ...raw,
+        id: snap.id,
+        createdAt,
+        resolved: { ...resolved, statuses: resolvedStatuses },
+      });
+      if (parsed.success) {
+        setRoll(parsed.data);
+      } else {
+        // Should never happen — log and surface raw shape so the dialog
+        // can still render dice + tier.
+        console.warn("[result-dialog] parse failed", parsed.error);
+        setRoll({ ...raw, createdAt } as RollRecord);
+      }
     });
     return unsub;
   }, [rollId, character.id]);
@@ -249,6 +272,14 @@ export function RollResultDialog() {
                   )}
                 </ul>
               )}
+
+              {roll.isDetailedAction &&
+              roll.detailedActionTarget &&
+              !roll.limitAllocationApplied &&
+              roll.power > 0 &&
+              role === "owner" ? (
+                <AllocationStep roll={roll} />
+              ) : null}
 
               {roll.reactingTo ? (
                 <div

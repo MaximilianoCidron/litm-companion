@@ -8,9 +8,14 @@ import {
   CommitRollInput,
   RollId,
   type Campaign,
+  type CampaignId,
   type EngagedChallenge,
 } from "../schemas";
 import { assertNotRetired, requireCharacterAccess } from "../lib/access";
+import {
+  activeSessionIdFrom,
+  resolveActiveSessionId,
+} from "../lib/session-log";
 import {
   firestoreToCampaign,
   firestoreToChallenge,
@@ -36,6 +41,28 @@ export const commitRoll = withAction(
   CommitRollInput,
   async (input, ctx): Promise<CommitRollResult> => {
     const db = getAdminDb();
+
+    // Detailed action / Reaction mutual exclusion + paired-field invariants.
+    // Enforced here because Zod can't express conditional requiredness across
+    // discriminated booleans without a discriminator.
+    if (input.isDetailedAction && input.isReaction) {
+      throw new ActionError(
+        "VALIDATION",
+        "A roll can't be both a Detailed action and a Reaction.",
+      );
+    }
+    if (input.isDetailedAction && !input.detailedActionTarget) {
+      throw new ActionError(
+        "VALIDATION",
+        "Detailed action requires a target challenge.",
+      );
+    }
+    if (!input.isDetailedAction && input.detailedActionTarget) {
+      throw new ActionError(
+        "VALIDATION",
+        "detailedActionTarget set but isDetailedAction is false.",
+      );
+    }
 
     return db.runTransaction(async (tx) => {
       const access = await requireCharacterAccess(
@@ -68,24 +95,59 @@ export const commitRoll = withAction(
         campaign = firestoreToCampaign(campSnap);
       }
 
+      // Resolve active session for sessionId tagging. Reuse the campaign
+      // snapshot when already loaded (fellowship invocation path), otherwise
+      // call resolveActiveSessionId for the primary campaign in the read
+      // phase. Rolls outside any campaign stay sessionId:null.
+      const primaryCampaignId = character.campaignIds[0] ?? null;
+      let sessionIdForRoll: string | null = null;
+      if (campaign) {
+        sessionIdForRoll = activeSessionIdFrom(
+          campaign as unknown as Record<string, unknown>,
+        );
+      } else if (primaryCampaignId) {
+        sessionIdForRoll = await resolveActiveSessionId(tx, primaryCampaignId);
+      }
+
       // Load engaged-challenge mirrors AND source docs for any challenge
       // invocations. Firestore transactions require all reads before writes,
       // so we batch both up front. Sources are needed later for scratching
       // (the mirror is denormalized; the source is authoritative).
-      const challengeInvocations = input.invocations.tags.filter(
-        (t) => t.location.kind === "challenge",
-      );
+      // Union challenge ids from BOTH tag and status invocations. Tag
+      // invocations may scratch the source; status invocations don't, but
+      // the mirror is still needed so power-calc can resolve status tiers.
+      const challengeIdLocations = new Map<string, CampaignId>(); // cid -> campaignId
+      for (const inv of input.invocations.tags) {
+        if (inv.location.kind === "challenge") {
+          challengeIdLocations.set(
+            inv.location.challengeId,
+            inv.location.campaignId,
+          );
+        }
+      }
+      for (const inv of input.invocations.statuses) {
+        if (inv.location.kind === "challenge") {
+          challengeIdLocations.set(
+            inv.location.challengeId,
+            inv.location.campaignId,
+          );
+        }
+      }
+      // Detailed action target also needs its engaged mirror loaded so we
+      // can snapshot the name AND verify the challenge still exposes limits.
+      if (input.isDetailedAction && input.detailedActionTarget) {
+        challengeIdLocations.set(
+          input.detailedActionTarget.challengeId,
+          input.detailedActionTarget.campaignId,
+        );
+      }
       const engagedChallenges = new Map<string, EngagedChallenge>();
       const challengeSources = new Map<
         string,
         { ref: DocumentReference; campaignId: string }
       >();
-      const seenChallengeIds = new Set<string>();
-      for (const inv of challengeInvocations) {
-        if (inv.location.kind !== "challenge") continue;
-        if (seenChallengeIds.has(inv.location.challengeId)) continue;
-        seenChallengeIds.add(inv.location.challengeId);
-        if (!character.campaignIds.includes(inv.location.campaignId)) {
+      for (const [challengeId, campaignIdLoc] of challengeIdLocations) {
+        if (!character.campaignIds.includes(campaignIdLoc)) {
           throw new ActionError(
             "FORBIDDEN",
             "Character is not in that challenge's campaign.",
@@ -93,14 +155,14 @@ export const commitRoll = withAction(
         }
         const mirrorRef = db
           .collection("campaigns")
-          .doc(inv.location.campaignId)
+          .doc(campaignIdLoc)
           .collection("engagedChallenges")
-          .doc(inv.location.challengeId);
+          .doc(challengeId);
         const sourceRef = db
           .collection("campaigns")
-          .doc(inv.location.campaignId)
+          .doc(campaignIdLoc)
           .collection("challenges")
-          .doc(inv.location.challengeId);
+          .doc(challengeId);
         const mirrorSnap = await tx.get(mirrorRef);
         if (!mirrorSnap.exists) {
           throw new ActionError(
@@ -109,14 +171,46 @@ export const commitRoll = withAction(
           );
         }
         engagedChallenges.set(
-          inv.location.challengeId,
+          challengeId,
           firestoreToEngagedChallenge(mirrorSnap),
         );
-        challengeSources.set(inv.location.challengeId, {
+        challengeSources.set(challengeId, {
           ref: sourceRef,
-          campaignId: inv.location.campaignId,
+          campaignId: campaignIdLoc,
         });
       }
+      // Detailed action target validation + snapshot. The engaged mirror
+      // was loaded above (we unioned its challengeId into challengeIdLocations).
+      // Verify the target is still engaged AND exposes limits, then capture
+      // the challenge name for the roll record.
+      let detailedActionTargetSnapshot: {
+        campaignId: CampaignId;
+        challengeId: import("../schemas").ChallengeId;
+        challengeName: string;
+      } | null = null;
+      if (input.isDetailedAction && input.detailedActionTarget) {
+        const engaged = engagedChallenges.get(
+          input.detailedActionTarget.challengeId,
+        );
+        if (!engaged) {
+          throw new ActionError(
+            "INVALID_STATE",
+            "That challenge is no longer engaged.",
+          );
+        }
+        if (engaged.limits.length === 0) {
+          throw new ActionError(
+            "INVALID_STATE",
+            "That challenge no longer exposes limits.",
+          );
+        }
+        detailedActionTargetSnapshot = {
+          campaignId: engaged.campaignId,
+          challengeId: engaged.id,
+          challengeName: engaged.name,
+        };
+      }
+
       // Pending-threat link: pre-read in the read phase. If linked the roll
       // MUST be a Reaction AND the caller MUST be the targetUid.
       let pendingThreatRef: DocumentReference | null = null;
@@ -222,6 +316,10 @@ export const commitRoll = withAction(
         reactingTo: input.reactingTo
           ? { pendingThreatId: input.reactingTo.pendingThreatId }
           : null,
+        sessionId: sessionIdForRoll,
+        isDetailedAction: input.isDetailedAction,
+        detailedActionTarget: detailedActionTargetSnapshot,
+        limitAllocationApplied: false,
       });
 
       // Link the roll to the pending threat. Status flips to reactionRolled
@@ -320,11 +418,12 @@ export const commitRoll = withAction(
         }
       }
 
-      // Engaged challenges: scratch each invoked challenge tag on the GM-only
-      // source AND re-sync the public mirror. Same transaction.
+      // Engaged challenges: scratch each invoked challenge TAG on the GM-only
+      // source AND re-sync the public mirror. Same transaction. Status
+      // invocations don't scratch — they're consumption-free.
       for (const [challengeId, info] of challengeSourceData.entries()) {
         const invokedTagIds = new Set(
-          challengeInvocations
+          input.invocations.tags
             .filter(
               (t) =>
                 t.location.kind === "challenge" &&

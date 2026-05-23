@@ -14,7 +14,11 @@ import {
   ThreatId,
 } from "./ids";
 import { MightLevelSchema, ThemeTypeSchema } from "./theme";
-import { MightModifierSchema, TagLocationSchema } from "./roll";
+import {
+  MightModifierSchema,
+  StatusLocationSchema,
+  TagLocationSchema,
+} from "./roll";
 import {
   ChallengeRoleSchema,
   ConsequenceTemplateSchema,
@@ -236,6 +240,7 @@ export type TagInvocationInput = z.infer<typeof TagInvocationInputSchema>;
 
 export const StatusInvocationInputSchema = z.object({
   statusId: StatusId,
+  location: StatusLocationSchema,
 });
 export type StatusInvocationInput = z.infer<typeof StatusInvocationInputSchema>;
 
@@ -256,8 +261,38 @@ export const CommitRollInput = z.object({
       campaignId: CampaignId,
     })
     .optional(),
+  // Detailed action — player declares this roll as targeting a specific
+  // engaged challenge for limit advancement. Mutually exclusive with
+  // isReaction; commit-roll validates the pair.
+  isDetailedAction: z.boolean().default(false),
+  detailedActionTarget: z
+    .object({
+      campaignId: CampaignId,
+      challengeId: ChallengeId,
+    })
+    .nullable()
+    .default(null),
 });
 export type CommitRollInput = z.infer<typeof CommitRollInput>;
+
+export const AllocateLimitProgressInput = z.object({
+  rollId: z.string().min(1),
+  characterId: CharacterId,
+  campaignId: CampaignId,
+  challengeId: ChallengeId,
+  allocations: z
+    .array(
+      z.object({
+        limitId: LimitId,
+        powerSpent: z.number().int().min(1).max(50),
+      }),
+    )
+    .min(0)
+    .max(10),
+});
+export type AllocateLimitProgressInput = z.infer<
+  typeof AllocateLimitProgressInput
+>;
 
 export const AddStoryTagInput = z.object({
   characterId: CharacterId,
@@ -313,6 +348,29 @@ export const RedeemInvitationInput = z.object({
   characterId: CharacterId,
 });
 export type RedeemInvitationInput = z.infer<typeof RedeemInvitationInput>;
+
+export const CreateDirectedInvitationInput = z.object({
+  campaignId: CampaignId,
+  targetEmail: z.string().email(),
+});
+export type CreateDirectedInvitationInput = z.infer<
+  typeof CreateDirectedInvitationInput
+>;
+
+export const RedeemDirectedInvitationInput = z.object({
+  invitationId: InvitationId,
+  characterId: CharacterId,
+});
+export type RedeemDirectedInvitationInput = z.infer<
+  typeof RedeemDirectedInvitationInput
+>;
+
+export const DeclineDirectedInvitationInput = z.object({
+  invitationId: InvitationId,
+});
+export type DeclineDirectedInvitationInput = z.infer<
+  typeof DeclineDirectedInvitationInput
+>;
 
 export const KickFromCampaignInput = z.object({
   campaignId: CampaignId,
@@ -470,6 +528,14 @@ export const MutateChallengeInput = z.object({
 
     z.object({ kind: z.literal("setEngaged"), engaged: z.boolean() }),
     z.object({ kind: z.literal("refreshTags") }),
+    z.object({
+      kind: z.literal("setExposeStatuses"),
+      exposeStatuses: z.boolean(),
+    }),
+    z.object({
+      kind: z.literal("setExposeLimits"),
+      exposeLimits: z.boolean(),
+    }),
   ]),
 });
 export type MutateChallengeInput = z.infer<typeof MutateChallengeInput>;
@@ -591,3 +657,28 @@ export const CancelPendingThreatInput = z.object({
   campaignId: CampaignId,
 });
 export type CancelPendingThreatInput = z.infer<typeof CancelPendingThreatInput>;
+
+export const StartSessionInput = z.object({
+  campaignId: CampaignId,
+  title: z.string().max(80).optional(),
+});
+export type StartSessionInput = z.infer<typeof StartSessionInput>;
+
+export const EndSessionInput = z.object({
+  campaignId: CampaignId,
+  notes: z.string().max(2000).optional(),
+});
+export type EndSessionInput = z.infer<typeof EndSessionInput>;
+
+export const FetchEndOfSessionSummaryInput = z.object({
+  campaignId: CampaignId,
+});
+export type FetchEndOfSessionSummaryInput = z.infer<
+  typeof FetchEndOfSessionSummaryInput
+>;
+
+export const PingPresenceInput = z.object({
+  campaignId: CampaignId.nullable().default(null),
+  characterId: CharacterId.nullable().default(null),
+});
+export type PingPresenceInput = z.infer<typeof PingPresenceInput>;

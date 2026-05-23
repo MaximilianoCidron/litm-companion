@@ -8,6 +8,8 @@ import {
   cancelPendingThreat,
   resolvePendingThreat,
 } from "../../actions";
+import { usePresenceOne } from "../../hooks/use-presence";
+import { PresenceDot } from "../presence/presence-dot";
 import type { PendingThreat } from "../../schemas";
 import { consequenceLabel } from "./helpers";
 
@@ -18,6 +20,7 @@ interface GmPendingRowProps {
 export function GmPendingRow({ threat }: GmPendingRowProps) {
   const callAction = useActionWithToast();
   const [pending, startTransition] = useTransition();
+  const targetPresence = usePresenceOne(threat.targetUid);
   const statusLabel =
     threat.status === "reactionRolled"
       ? `reaction rolled (${threat.reactionPower ?? 0} Power)`
@@ -26,11 +29,15 @@ export function GmPendingRow({ threat }: GmPendingRowProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-mist-light px-3 py-2 dark:border-mist-dark">
       <div className="flex min-w-0 flex-col">
-        <span className="font-display text-sm">
+        <span className="inline-flex items-center gap-2 font-display text-sm">
+          <PresenceDot uid={threat.targetUid} />
           {threat.targetCharacterName} — {consequenceLabel(threat.consequence)}
         </span>
         <span className="text-xs text-ink-subtle dark:text-parchment-subtle">
           {statusLabel} · {formatRelativeTime(threat.createdAt)}
+          {targetPresence.isOnline
+            ? null
+            : " · target is offline — they'll see this when they return"}
         </span>
       </div>
       <div className="flex items-center gap-2">

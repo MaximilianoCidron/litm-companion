@@ -1,6 +1,6 @@
 "use client";
 import { useTransition } from "react";
-import { Dices, Loader2, Shield } from "lucide-react";
+import { Dices, Loader2, Shield, Target } from "lucide-react";
 import { Button } from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import { commitRoll } from "../../actions";
@@ -8,14 +8,15 @@ import { useCharacter } from "../CharacterProvider";
 import {
   useInvokedStatuses,
   useInvokedTags,
+  useIsDetailedAction,
   useIsReaction,
   useMightModifier,
   useRollBuilder,
 } from "../../stores/roll-builder";
 import type {
   CampaignId,
+  ChallengeId,
   PendingThreatId,
-  StatusId,
   StatusInvocationInput,
   TagInvocationInput,
 } from "../../schemas";
@@ -26,6 +27,7 @@ export function RollButton() {
   const invokedStatuses = useInvokedStatuses();
   const mightModifier = useMightModifier();
   const isReaction = useIsReaction();
+  const isDetailedAction = useIsDetailedAction();
   const openResultDialog = useRollBuilder((s) => s.openResultDialog);
   const resetSelectionOnly = useRollBuilder((s) => s.resetSelectionOnly);
   const callAction = useActionWithToast();
@@ -49,7 +51,7 @@ export function RollButton() {
       );
       const statuses: StatusInvocationInput[] = Array.from(
         invokedStatuses.values(),
-      ).map((id) => ({ statusId: id as StatusId }));
+      ).map((entry) => ({ statusId: entry.statusId, location: entry.location }));
 
       const reactingToPendingThreatId =
         useRollBuilder.getState().reactingToPendingThreatId;
@@ -63,20 +65,35 @@ export function RollButton() {
             }
           : undefined;
 
+      const detailedChallengeId =
+        useRollBuilder.getState().detailedActionChallengeId;
+      const detailedCampaignId =
+        useRollBuilder.getState().detailedActionCampaignId;
+      const detailedActionTarget =
+        isDetailedAction && detailedChallengeId && detailedCampaignId
+          ? {
+              challengeId: detailedChallengeId as ChallengeId,
+              campaignId: detailedCampaignId as CampaignId,
+            }
+          : null;
+
       const result = await callAction(
         commitRoll({
           characterId: character.id,
           isReaction,
           invocations: { tags, statuses },
           mightModifier,
+          isDetailedAction,
+          detailedActionTarget,
           ...(reactingTo ? { reactingTo } : {}),
         }),
       );
       if (result) {
         openResultDialog(result.rollId);
         resetSelectionOnly();
-        // clear reactingTo* alongside selection cleanup
+        // clear reactingTo*/detailedAction* alongside selection cleanup
         useRollBuilder.getState().clearReaction();
+        useRollBuilder.getState().clearDetailedAction();
       }
     });
   };
@@ -87,9 +104,17 @@ export function RollButton() {
       ? "Pick a tag, status, or modifier"
       : isReaction
         ? "Roll Reaction"
-        : "Roll 2d6 + Power";
+        : isDetailedAction
+          ? "Roll Detailed action"
+          : "Roll 2d6 + Power";
 
-  const Icon = pending ? Loader2 : isReaction ? Shield : Dices;
+  const Icon = pending
+    ? Loader2
+    : isReaction
+      ? Shield
+      : isDetailedAction
+        ? Target
+        : Dices;
 
   return (
     <Button

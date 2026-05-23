@@ -3,14 +3,23 @@ import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { AddSessionLogEntryInput } from "../schemas";
 import { requireCampaignMembership } from "../lib/access";
-import { getAuthorDisplayName, writeLogEntry } from "../lib/session-log";
+import {
+  activeSessionIdFrom,
+  getAuthorDisplayName,
+  writeLogEntry,
+} from "../lib/session-log";
 
 export const addSessionLogEntry = withAction(
   AddSessionLogEntryInput,
   async (input, ctx): Promise<{ entryId: string }> => {
     const db = getAdminDb();
     return db.runTransaction(async (tx) => {
-      await requireCampaignMembership(input.campaignId, ctx.uid, tx);
+      const { snap: campSnap } = await requireCampaignMembership(
+        input.campaignId,
+        ctx.uid,
+        tx,
+      );
+      const sessionId = activeSessionIdFrom(campSnap.data() ?? undefined);
 
       let subjectCharacterName: string | null = null;
       if (input.subjectCharacterId) {
@@ -43,6 +52,7 @@ export const addSessionLogEntry = withAction(
         subjectCharacterName,
         text: input.text,
         details: { kind: "annotation" },
+        sessionId,
       });
 
       return { entryId };

@@ -272,13 +272,30 @@ export function resolveInvocations(
   }
 
   // Statuses: max per polarity contributes signed tier; rest contribute 0.
+  // Character-located lookups read from character.statuses; challenge-located
+  // lookups read from the engaged mirror's statuses array. Both feed the
+  // same max-vs-max pool — the rules treat statuses atmospherically.
   const statusesResolved: ResolvedStatusInvocation[] = [];
   const requested = invocations.statuses.map((s) => {
-    const found = character.statuses.find((c) => c.id === s.statusId);
+    if (s.location.kind === "character") {
+      const found = character.statuses.find((c) => c.id === s.statusId);
+      return { input: s, status: found };
+    }
+    const engaged = engagedChallenges.get(s.location.challengeId);
+    if (!engaged) {
+      return { input: s, status: undefined };
+    }
+    const found = engaged.statuses.find((c) => c.id === s.statusId);
     return { input: s, status: found };
   });
   for (const r of requested) {
     if (!r.status) {
+      if (r.input.location.kind === "challenge") {
+        return {
+          ok: false,
+          reason: "Challenge status no longer available.",
+        };
+      }
       return { ok: false, reason: `Status ${r.input.statusId} not found.` };
     }
   }
@@ -320,6 +337,7 @@ export function resolveInvocations(
       tier: status.tier as ResolvedStatusInvocation["tier"],
       polarity: status.polarity,
       contribution,
+      location: r.input.location,
     });
   }
 

@@ -53,6 +53,8 @@ export function buildBlankChallenge(params: {
     threats: [],
     notes: "",
     engaged: false,
+    exposeStatuses: false,
+    exposeLimits: false,
     createdAt: nowIso,
     updatedAt: nowIso,
   };

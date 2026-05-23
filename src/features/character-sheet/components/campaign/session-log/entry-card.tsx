@@ -23,6 +23,7 @@ import type {
   SessionLogEntryId,
 } from "../../../schemas";
 import { kindMeta } from "./helpers";
+import { SessionBoundaryCard } from "./session-boundary-card";
 
 interface EntryCardProps {
   entry: SessionLogEntry;
@@ -40,6 +41,10 @@ export function EntryCard({
   compact = false,
 }: EntryCardProps) {
   const callAction = useActionWithToast();
+  // Session-boundary entries render as a distinctive divider, not a card.
+  if (entry.details.kind === "sessionBoundary") {
+    return <SessionBoundaryCard entry={entry} />;
+  }
   const meta = kindMeta(entry.details.kind);
   const authorIsGm = entry.authorUid === campaign.gmUid;
   const canDelete = isGm || entry.authorUid === currentUid;

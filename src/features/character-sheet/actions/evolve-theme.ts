@@ -11,6 +11,7 @@ import {
 import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 import {
   getAuthorDisplayName,
+  resolveActiveSessionId,
   summarizeThemeAdvancement,
   writeLogEntry,
 } from "../lib/session-log";
@@ -37,6 +38,16 @@ export const evolveTheme = withAction(
 
       const data = access.snap.data() ?? {};
       assertNotRetired(data); // retired-character guard
+
+      // Pre-resolve active session in the read phase.
+      const charCampaignIds = Array.isArray(data.campaignIds)
+        ? (data.campaignIds as string[])
+        : [];
+      const logCampaignId = charCampaignIds[0] ?? null;
+      const sessionId = logCampaignId
+        ? await resolveActiveSessionId(tx, logCampaignId)
+        : null;
+
       const themes = Array.isArray(data.themes)
         ? [...(data.themes as Record<string, unknown>[])]
         : [];
@@ -99,10 +110,6 @@ export const evolveTheme = withAction(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      const campaignIds = Array.isArray(data.campaignIds)
-        ? (data.campaignIds as string[])
-        : [];
-      const logCampaignId = campaignIds[0] ?? null;
       if (logCampaignId) {
         const characterName =
           ((data.identity as Record<string, unknown> | undefined)?.name as
@@ -129,6 +136,7 @@ export const evolveTheme = withAction(
             themeName,
             newMightLevel: next ? finalMight : undefined,
           },
+          sessionId,
         });
       } else {
         // eslint-disable-next-line no-console

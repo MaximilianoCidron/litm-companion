@@ -3,6 +3,8 @@ import {
   CampaignId,
   ChallengeId,
   CharacterId,
+  LimitId,
+  SessionId,
   SessionLogEntryId,
   ThemeId,
 } from "./ids";
@@ -41,6 +43,25 @@ export const SessionLogDetailsSchema = z.discriminatedUnion("kind", [
     themeName: z.string(),
     newMightLevel: z.enum(["origin", "adventure", "greatness"]).optional(),
   }),
+  z.object({
+    kind: z.literal("sessionBoundary"),
+    boundary: z.enum(["start", "end"]),
+    sessionNumber: z.number().int(),
+    sessionId: SessionId,
+  }),
+  z.object({
+    kind: z.literal("limitAdvancement"),
+    challengeId: ChallengeId,
+    // Safe to include — limits are GM-exposed when allocation occurs.
+    challengeName: z.string(),
+    limitId: LimitId,
+    limitLabel: z.string(),
+    powerSpent: z.number().int().min(1).max(50),
+    previousCurrent: z.number().int().min(0).max(50),
+    newCurrent: z.number().int().min(0).max(50),
+    threshold: z.number().int().min(1).max(50),
+    overcame: z.boolean(),
+  }),
 ]);
 export type SessionLogDetails = z.infer<typeof SessionLogDetailsSchema>;
 
@@ -58,6 +79,9 @@ export const SessionLogEntrySchema = z.object({
   details: SessionLogDetailsSchema,
 
   pinned: z.boolean().default(false),
+  // Tagged with the active session at write time. Pre-feature entries
+  // parse as null and don't appear in session-scoped views.
+  sessionId: SessionId.nullable().default(null),
   createdAt: z.string().datetime(),
 });
 export type SessionLogEntry = z.infer<typeof SessionLogEntrySchema>;

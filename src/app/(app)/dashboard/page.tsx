@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card } from "@/shared/ui";
 import { getSessionUser } from "@/shared/auth";
 import { CharacterGrid, DashboardHeader } from "@/features/character-sheet";
+import { IncomingInvitationsSection } from "@/features/character-sheet/components/invite/incoming-invitations-section";
 import {
   getMyCampaigns,
   getMyCharacters,
@@ -28,6 +29,7 @@ export default async function DashboardPage({
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 md:px-6 lg:px-8">
       <DashboardHeader firstName={firstName} />
+      <IncomingInvitationsSection currentUid={user.uid} />
       <div className="flex items-center justify-end">
         <Link
           href={includeRetired ? "/dashboard" : "/dashboard?archived=1"}

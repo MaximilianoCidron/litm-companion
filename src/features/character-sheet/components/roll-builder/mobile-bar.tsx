@@ -12,7 +12,7 @@ import {
 import { computePower } from "../../lib/power-calc";
 import { cn } from "@/shared/lib/cn";
 import { Dices, Shield } from "lucide-react";
-import type { StatusInvocationInput, StatusId, TagInvocationInput } from "../../schemas";
+import type { StatusInvocationInput, TagInvocationInput } from "../../schemas";
 
 export function MobileBar() {
   const { character } = useCharacter();
@@ -37,7 +37,7 @@ export function MobileBar() {
     );
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
-    ).map((id) => ({ statusId: id as StatusId }));
+    ).map((entry) => ({ statusId: entry.statusId, location: entry.location }));
     const engagedMap = new Map(engagedChallenges.map((e) => [e.id, e]));
     return computePower(
       character,

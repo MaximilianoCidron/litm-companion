@@ -13,6 +13,37 @@ export interface LogEntryPayload {
   subjectCharacterName: string | null;
   text: string;
   details: SessionLogDetails;
+  /** Active session at write time, or null when no session is in progress.
+   *  REQUIRED — TypeScript enforces every callsite resolves it. */
+  sessionId: string | null;
+  /** Defaults to false. start-session / end-session pass true to auto-pin
+   *  boundary entries as navigational anchors. */
+  pinned?: boolean;
+}
+
+/**
+ * Read the active session id via an additional tx.get on the campaign doc.
+ * Use when the action doesn't already have a campaign snapshot.
+ */
+export async function resolveActiveSessionId(
+  tx: Transaction,
+  campaignId: string,
+): Promise<string | null> {
+  const db = getAdminDb();
+  const snap = await tx.get(db.collection("campaigns").doc(campaignId));
+  if (!snap.exists) return null;
+  return (snap.data()?.activeSessionId as string | null | undefined) ?? null;
+}
+
+/**
+ * Extract active session id from a pre-fetched campaign data blob. Use when
+ * the action already reads the campaign for its main logic.
+ */
+export function activeSessionIdFrom(
+  campaignData: Record<string, unknown> | undefined,
+): string | null {
+  if (!campaignData) return null;
+  return (campaignData.activeSessionId as string | null | undefined) ?? null;
 }
 
 /**
@@ -40,7 +71,8 @@ export function writeLogEntry(
     subjectCharacterName: payload.subjectCharacterName,
     text: payload.text,
     details: payload.details,
-    pinned: false,
+    sessionId: payload.sessionId,
+    pinned: payload.pinned ?? false,
     createdAt: FieldValue.serverTimestamp(),
   });
   return { entryId: ref.id };

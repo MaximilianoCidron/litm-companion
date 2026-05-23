@@ -9,6 +9,7 @@ import {
   InvitationSchema,
 } from "../schemas";
 import { requireCampaignGm } from "../lib/access";
+import { getAuthorDisplayName } from "../lib/session-log";
 
 const ISO_SENTINEL = "1970-01-01T00:00:00.000Z";
 
@@ -23,6 +24,7 @@ export const createInvitation = withAction(
     const db = getAdminDb();
     const { snap } = await requireCampaignGm(input.campaignId, ctx.uid);
     const campaignName = (snap.data()?.name as string | undefined) ?? "";
+    const invitedByName = getAuthorDisplayName(ctx);
 
     const expiresAt = new Date(
       Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000,
@@ -36,9 +38,11 @@ export const createInvitation = withAction(
     // validation pass.
     InvitationSchema.parse({
       id: invitationId,
+      kind: "token",
       campaignId: input.campaignId,
       campaignName,
       invitedByUid: ctx.uid,
+      invitedByName,
       status: "open",
       consumedByUid: null,
       consumedAt: null,
@@ -48,9 +52,11 @@ export const createInvitation = withAction(
 
     await invitationRef.set({
       id: invitationId,
+      kind: "token",
       campaignId: input.campaignId,
       campaignName,
       invitedByUid: ctx.uid,
+      invitedByName,
       status: "open",
       consumedByUid: null,
       consumedAt: null,

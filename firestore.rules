@@ -71,6 +71,16 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // sessions — campaign session boundary docs. Any member reads;
+      // writes via Admin SDK only (start-session/end-session actions).
+      match /sessions/{sessionId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/campaigns/$(campaignId)).data.gmUid == request.auth.uid
+          || (request.auth.uid in get(/databases/$(database)/documents/campaigns/$(campaignId)).data.playerUids)
+        );
+        allow write: if false;
+      }
+
       // pendingThreats — reaction state machine. Any member reads (UI
       // branches on role); writes via Admin SDK only.
       match /pendingThreats/{ptId} {
@@ -122,10 +132,21 @@ service cloud.firestore {
     //   write: forbidden — Server Actions via Admin SDK only.
     // ------------------------------------------------------------------
     match /invitations/{invitationId} {
+      // Any signed-in user may fetch an invitation by id (used by the
+      // /invite/[token] flow). Directed-invitation reads also pass when
+      // the caller is the addressee — server actions check this server-side
+      // too; the rule is the backstop.
       allow get: if isSignedIn();
-      allow list: if isSignedIn()
-        && resource.data.campaignId is string
-        && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmUid == request.auth.uid;
+      // Listing is gated: either the caller is the GM of the campaign in
+      // the query's `campaignId` filter, or the directedAtUid points at
+      // them. Combined with the corresponding `where(...)` clauses on the
+      // client, this confines enumeration to the right viewer.
+      allow list: if isSignedIn() && (
+        (resource.data.campaignId is string
+          && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmUid == request.auth.uid)
+        || (resource.data.directedAtUid is string
+            && resource.data.directedAtUid == request.auth.uid)
+      );
       allow write: if false;
     }
 
@@ -137,6 +158,16 @@ service cloud.firestore {
         && resource.data.gmId == request.auth.uid;
       allow create: if isSignedIn()
         && request.resource.data.gmId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------------
+    // presence/{uid} — heartbeat docs. Any signed-in user reads (used to
+    // light up green dots across the app). Writes are server-only — every
+    // heartbeat flows through the pingPresence Server Action.
+    // ------------------------------------------------------------------
+    match /presence/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     // Default deny — every other path is forbidden.

@@ -1,11 +1,23 @@
 // TODO(refactor): promote campaign subdomain to its own feature.
 "use client";
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useCampaignSnapshot, type CampaignSnapshotState } from "../hooks/use-campaign-snapshot";
 import { useEngagedChallenges } from "../hooks/use-engaged-challenges";
 import { usePendingThreats } from "../hooks/use-pending-threats";
+import { usePresenceStore } from "../stores/presence";
 import { useCharacter } from "./CharacterProvider";
-import type { Campaign, EngagedChallenge, PendingThreat } from "../schemas";
+import type {
+  Campaign,
+  CampaignId,
+  EngagedChallenge,
+  PendingThreat,
+} from "../schemas";
 
 export type CampaignContextValue =
   | {
@@ -102,6 +114,7 @@ function CharacterScopedCampaignProvider({
   const state = useCampaignSnapshot(campaignId, initial);
   const { engagedChallenges } = useEngagedChallenges(campaignId);
   const { pendingThreats } = usePendingThreats(campaignId);
+  useRegisterCampaignPresence(campaignId);
   const value = useMemo(
     () =>
       toContextValue(state, effectiveUid, engagedChallenges, pendingThreats),
@@ -112,6 +125,15 @@ function CharacterScopedCampaignProvider({
       {children}
     </CampaignContext.Provider>
   );
+}
+
+function useRegisterCampaignPresence(campaignId: CampaignId | null): void {
+  useEffect(() => {
+    usePresenceStore.getState().setCurrentCampaign(campaignId);
+    return () => {
+      usePresenceStore.getState().setCurrentCampaign(null);
+    };
+  }, [campaignId]);
 }
 
 function FixedCampaignProvider({
@@ -128,6 +150,7 @@ function FixedCampaignProvider({
   const state = useCampaignSnapshot(campaignId, initial);
   const { engagedChallenges } = useEngagedChallenges(campaignId);
   const { pendingThreats } = usePendingThreats(campaignId);
+  useRegisterCampaignPresence(campaignId as CampaignId | null);
   const value = useMemo(
     () => toContextValue(state, currentUid, engagedChallenges, pendingThreats),
     [state, currentUid, engagedChallenges, pendingThreats],

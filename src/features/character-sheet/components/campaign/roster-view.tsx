@@ -18,6 +18,8 @@ import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import { useRoster } from "../RosterProvider";
 import { useCampaign } from "../CampaignProvider";
 import { kickFromCampaign } from "../../actions";
+import { usePresence } from "../../hooks/use-presence";
+import { PresenceDot } from "../presence/presence-dot";
 import type { CampaignId, Character } from "../../schemas";
 
 interface RosterViewProps {
@@ -33,9 +35,31 @@ export function RosterView({ campaignId }: RosterViewProps) {
       : null;
   const isGm = role === "gm";
 
+  const gmUid =
+    campaign.status === "live"
+      ? campaign.campaign.gmUid
+      : campaign.status === "error"
+        ? (campaign.campaign?.gmUid ?? null)
+        : null;
+  const allUids = Array.from(
+    new Set(
+      characters.map((c) => c.userId).concat(gmUid ? [gmUid] : []),
+    ),
+  );
+  const presenceMap = usePresence(allUids);
+  const onlineCount = Array.from(presenceMap.values()).filter(
+    (p) => p.isOnline,
+  ).length;
+
   return (
     <Card>
-      <Card.Header title="Roster" />
+      <Card.Header title="Roster">
+        {allUids.length > 0 ? (
+          <span className="font-display text-xs uppercase tracking-wider text-ink-muted dark:text-parchment-muted">
+            {onlineCount} of {allUids.length} online
+          </span>
+        ) : null}
+      </Card.Header>
       <Card.Body>
         {characters.length === 0 ? (
           <p className="text-sm italic text-ink-subtle dark:text-parchment-subtle">
@@ -94,7 +118,8 @@ function RosterRow({
           </AvatarFallback>
         </Avatar>
         <div className="flex flex-1 flex-col">
-          <span className="font-display text-ink-base dark:text-parchment-base">
+          <span className="inline-flex items-center gap-2 font-display text-ink-base dark:text-parchment-base">
+            <PresenceDot uid={character.userId} />
             {character.identity.name || "Unnamed hero"}
           </span>
           {character.identity.concept ? (

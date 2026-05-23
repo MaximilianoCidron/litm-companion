@@ -30,6 +30,9 @@ export function syncEngagedMirror(
       campaignId: challenge.campaignId,
       name: challenge.name,
       tags: challenge.tags,
+      // Sub-toggles gate which subsets sync. Empty array when off.
+      statuses: challenge.exposeStatuses ? challenge.statuses : [],
+      limits: challenge.exposeLimits ? challenge.limits : [],
       updatedAt: FieldValue.serverTimestamp(),
     });
   } else {

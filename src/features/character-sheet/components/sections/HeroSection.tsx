@@ -2,8 +2,11 @@
 import { Card, Skeleton, Track } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
 import { CampaignBadge } from "../campaign/campaign-badge";
+import { CharacterHeaderMenu } from "../character-header-menu";
 import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment";
 import { MakeCampButton } from "../camp/make-camp-button";
+import { PresenceDot } from "../presence/presence-dot";
+import { usePresenceOne } from "../../hooks/use-presence";
 
 export function HeroSection() {
   const { character, role, canEdit, isRetired } = useCharacter();
@@ -17,7 +20,10 @@ export function HeroSection() {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <Card>
-        <Card.Header title="Hero" />
+        <Card.Header>
+          <h3 className="font-display text-base tracking-tight">Hero</h3>
+          <CharacterHeaderMenu />
+        </Card.Header>
         <Card.Body className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
             <span className="text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
@@ -46,9 +52,7 @@ export function HeroSection() {
             <span className="text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
               Player
             </span>
-            <span className="text-sm text-ink-base dark:text-parchment-base">
-              {identity.playerName || "—"}
-            </span>
+            <PlayerLine playerNameFallback={identity.playerName} />
           </div>
 
           <div className="flex flex-col gap-3">
@@ -122,5 +126,36 @@ export function HeroSection() {
         </Card.Body>
       </Card>
     </div>
+  );
+}
+
+function PlayerLine({ playerNameFallback }: { playerNameFallback: string }) {
+  const { character, role } = useCharacter();
+  // GM viewing another player's sheet benefits from knowing whether the
+  // player is online to coordinate. Owner viewing their own sheet sees no
+  // extra signal — they already know.
+  const showPresence = role === "gm";
+  const { doc, isOnline } = usePresenceOne(
+    showPresence ? character.userId : null,
+  );
+  const displayName =
+    doc?.displayName || playerNameFallback || "—";
+
+  if (!showPresence) {
+    return (
+      <span className="text-sm text-ink-base dark:text-parchment-base">
+        {playerNameFallback || "—"}
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-ink-base dark:text-parchment-base">
+      <PresenceDot uid={character.userId} />
+      <span>{displayName}</span>
+      <span className="text-xs text-ink-muted dark:text-parchment-muted">
+        · {isOnline ? "online" : "offline"}
+      </span>
+    </span>
   );
 }

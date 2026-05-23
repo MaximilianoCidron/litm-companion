@@ -17,6 +17,8 @@ const OPTIONS: { key: LogFilter; label: string }[] = [
   { key: "deliverThreat", label: "Threats" },
   { key: "themeAdvancement", label: "Advancements" },
   { key: "momentOfFulfillment", label: "Moments" },
+  { key: "sessionBoundary", label: "Sessions" },
+  { key: "limitAdvancement", label: "Limit progress" },
 ];
 
 export function FilterBar({ value, onChange, counts }: FilterBarProps) {

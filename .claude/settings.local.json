@@ -4,7 +4,8 @@
       "Bash(pnpm -v)",
       "PowerShell(pnpm *)",
       "PowerShell(npm i *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)"
     ]
   }
 }

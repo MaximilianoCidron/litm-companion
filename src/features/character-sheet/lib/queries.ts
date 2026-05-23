@@ -18,6 +18,8 @@ import {
   type EngagedChallenge,
   type Invitation,
   type PendingThreat,
+  type RollRecord,
+  type Session,
   type SessionLogEntry,
 } from "../schemas";
 import {
@@ -32,6 +34,8 @@ import {
   firestoreToEngagedChallenge,
   firestoreToInvitation,
   firestoreToPendingThreat,
+  firestoreToRollRecord,
+  firestoreToSession,
   firestoreToSessionLogEntry,
 } from "./serialize";
 
@@ -372,6 +376,336 @@ export async function getPendingThreats(
     }
   }
   return result;
+}
+
+/**
+ * Per-campaign session list, newest first, capped at 50.
+ */
+export async function listSessions(
+  rawCampaignId: string,
+  uid: string,
+): Promise<Session[]> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignMembership(campaignId, uid);
+  const db = getAdminDb();
+  const snap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("sessions")
+    .orderBy("sessionNumber", "desc")
+    .limit(50)
+    .get();
+  const result: Session[] = [];
+  for (const doc of snap.docs) {
+    try {
+      result.push(firestoreToSession(doc));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[sessions] malformed", doc.id, err);
+    }
+  }
+  return result;
+}
+
+export interface TierDistribution {
+  success: number;
+  mixed: number;
+  failure: number;
+  reaction: number;
+}
+
+export interface CharacterSessionStats {
+  characterId: string;
+  characterName: string;
+  rollCount: number;
+  tierDistribution: TierDistribution;
+}
+
+export interface SessionStats {
+  durationMs: number | null;
+  rollCount: number;
+  tierDistribution: TierDistribution;
+  deliverThreatCount: number;
+  momentOfFulfillmentCount: number;
+  campActionCount: number;
+  themeAdvancementCount: number;
+  annotationCount: number;
+  // NOTE: prompt 15 reaction resolutions are logged under "deliverThreat"
+  // kind, so they count toward deliverThreatCount. If a future prompt adds
+  // a dedicated session-log kind for reaction outcomes, split it out here.
+}
+
+export interface SessionDetail {
+  session: Session;
+  stats: SessionStats;
+  characterStats: CharacterSessionStats[];
+  logEntries: SessionLogEntry[];
+}
+
+/**
+ * Per-session analytics. Any campaign member may read. Pulls rolls via
+ * a collection-group query tagged by sessionId (requires composite index
+ * sessionId asc + createdAt asc). Stats computed live — no caching.
+ */
+export async function getSessionDetail(
+  rawCampaignId: string,
+  rawSessionId: string,
+  uid: string,
+): Promise<SessionDetail> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignMembership(campaignId, uid);
+  const db = getAdminDb();
+
+  const sessionRef = db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("sessions")
+    .doc(rawSessionId);
+  const sessionSnap = await sessionRef.get();
+  if (!sessionSnap.exists) {
+    throw new ActionError("NOT_FOUND", "Session not found.");
+  }
+  const session = firestoreToSession(sessionSnap);
+
+  const campSnap = await db.collection("campaigns").doc(campaignId).get();
+  if (!campSnap.exists) {
+    throw new ActionError("NOT_FOUND", "Campaign not found.");
+  }
+  const campaign = firestoreToCampaign(campSnap);
+
+  const rollsSnap = await db
+    .collectionGroup("rolls")
+    .where("sessionId", "==", rawSessionId)
+    .get();
+
+  const logSnap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("sessionLog")
+    .where("sessionId", "==", rawSessionId)
+    .orderBy("createdAt", "asc")
+    .get();
+
+  const logEntries: SessionLogEntry[] = [];
+  for (const doc of logSnap.docs) {
+    try {
+      logEntries.push(firestoreToSessionLogEntry(doc));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[session-detail] malformed log entry", doc.id, err);
+    }
+  }
+
+  const tierDistribution: TierDistribution = {
+    success: 0,
+    mixed: 0,
+    failure: 0,
+    reaction: 0,
+  };
+  const rollsByCharacter = new Map<string, RollRecord[]>();
+  for (const doc of rollsSnap.docs) {
+    try {
+      const roll = firestoreToRollRecord(doc);
+      if (roll.isReaction) tierDistribution.reaction += 1;
+      else if (roll.tier === "success") tierDistribution.success += 1;
+      else if (roll.tier === "mixed") tierDistribution.mixed += 1;
+      else if (roll.tier === "failure") tierDistribution.failure += 1;
+
+      const list = rollsByCharacter.get(roll.characterId) ?? [];
+      list.push(roll);
+      rollsByCharacter.set(roll.characterId, list);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[session-detail] malformed roll", doc.id, err);
+    }
+  }
+
+  const characterStats: CharacterSessionStats[] = campaign.roster.map(
+    (rosterEntry) => {
+      const rolls = rollsByCharacter.get(rosterEntry.characterId) ?? [];
+      const charTier: TierDistribution = {
+        success: 0,
+        mixed: 0,
+        failure: 0,
+        reaction: 0,
+      };
+      for (const r of rolls) {
+        if (r.isReaction) charTier.reaction += 1;
+        else if (r.tier === "success") charTier.success += 1;
+        else if (r.tier === "mixed") charTier.mixed += 1;
+        else if (r.tier === "failure") charTier.failure += 1;
+      }
+      return {
+        characterId: rosterEntry.characterId,
+        characterName: rosterEntry.characterName,
+        rollCount: rolls.length,
+        tierDistribution: charTier,
+      };
+    },
+  );
+  characterStats.sort((a, b) => b.rollCount - a.rollCount);
+
+  const kindCounts: Record<string, number> = {};
+  for (const entry of logEntries) {
+    kindCounts[entry.details.kind] = (kindCounts[entry.details.kind] ?? 0) + 1;
+  }
+
+  const durationMs = session.endedAt
+    ? new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()
+    : null;
+
+  return {
+    session,
+    stats: {
+      durationMs,
+      rollCount: rollsSnap.docs.length,
+      tierDistribution,
+      deliverThreatCount: kindCounts.deliverThreat ?? 0,
+      momentOfFulfillmentCount: kindCounts.momentOfFulfillment ?? 0,
+      campActionCount: kindCounts.campAction ?? 0,
+      themeAdvancementCount: kindCounts.themeAdvancement ?? 0,
+      annotationCount: kindCounts.annotation ?? 0,
+    },
+    characterStats,
+    logEntries,
+  };
+}
+
+export interface EndOfSessionSummary {
+  characters: Array<{
+    characterId: string;
+    name: string;
+    burnedTagCount: number;
+    scratchedPowerTagCount: number;
+    promise: number;
+    momentOfFulfillmentReady: boolean;
+  }>;
+  campaign: {
+    fellowshipScratchedCount: number;
+  };
+  sessionStats: {
+    sessionId: string;
+    sessionNumber: number;
+    startedAt: string;
+    rollCount: number;
+    deliverThreatCount: number;
+    momentOfFulfillmentCount: number;
+    campActionCount: number;
+  } | null;
+}
+
+/**
+ * GM-only — computes a live summary panel for the end-session dialog.
+ * Bounded reads: 1 campaign + N character + 1 session + log-by-session +
+ * N count() aggregates. Suitable for on-demand dialog open, not for
+ * frequent polling.
+ */
+export async function getEndOfSessionSummary(
+  rawCampaignId: string,
+  uid: string,
+): Promise<EndOfSessionSummary> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignGm(campaignId, uid);
+  const db = getAdminDb();
+
+  const campSnap = await db.collection("campaigns").doc(campaignId).get();
+  if (!campSnap.exists) {
+    throw new ActionError("NOT_FOUND", "Campaign not found.");
+  }
+  const campaign = firestoreToCampaign(campSnap);
+
+  const characterIds = campaign.roster.map((r) => r.characterId);
+  const charDocs = await Promise.all(
+    characterIds.map((id) => db.collection("characters").doc(id).get()),
+  );
+  const characters = charDocs
+    .filter((d) => d.exists)
+    .map((d) => {
+      const c = firestoreToCharacter(d);
+      const burnedTagCount = c.themes.reduce(
+        (sum, t) => sum + t.powerTags.filter((tag) => tag.burned).length,
+        0,
+      );
+      const scratchedPowerTagCount = c.themes.reduce(
+        (sum, t) =>
+          sum +
+          t.powerTags.filter((tag) => tag.scratched && !tag.burned).length,
+        0,
+      );
+      return {
+        characterId: c.id,
+        name: c.identity.name,
+        burnedTagCount,
+        scratchedPowerTagCount,
+        promise: c.progression.promise,
+        momentOfFulfillmentReady:
+          c.progression.promise === 5 && c.status === "active",
+      };
+    });
+
+  const fellowshipScratchedCount = campaign.fellowship.powerTags.filter(
+    (t) => t.scratched,
+  ).length;
+
+  let sessionStats: EndOfSessionSummary["sessionStats"] = null;
+  if (campaign.activeSessionId) {
+    const sessionRef = db
+      .collection("campaigns")
+      .doc(campaignId)
+      .collection("sessions")
+      .doc(campaign.activeSessionId);
+    const sessionSnap = await sessionRef.get();
+    if (sessionSnap.exists) {
+      const session = firestoreToSession(sessionSnap);
+      const logSnap = await db
+        .collection("campaigns")
+        .doc(campaignId)
+        .collection("sessionLog")
+        .where("sessionId", "==", campaign.activeSessionId)
+        .get();
+      let deliverThreatCount = 0;
+      let momentOfFulfillmentCount = 0;
+      let campActionCount = 0;
+      for (const doc of logSnap.docs) {
+        const kind = (
+          doc.data().details as { kind?: string } | undefined
+        )?.kind;
+        if (kind === "deliverThreat") deliverThreatCount += 1;
+        else if (kind === "momentOfFulfillment")
+          momentOfFulfillmentCount += 1;
+        else if (kind === "campAction") campActionCount += 1;
+      }
+      const startedAtDate = new Date(session.startedAt);
+      const rollCounts = await Promise.all(
+        characterIds.map(async (id) => {
+          const agg = await db
+            .collection("characters")
+            .doc(id)
+            .collection("rolls")
+            .where("createdAt", ">=", startedAtDate)
+            .count()
+            .get();
+          return agg.data().count;
+        }),
+      );
+      const rollCount = rollCounts.reduce((a, b) => a + b, 0);
+      sessionStats = {
+        sessionId: session.id,
+        sessionNumber: session.sessionNumber,
+        startedAt: session.startedAt,
+        rollCount,
+        deliverThreatCount,
+        momentOfFulfillmentCount,
+        campActionCount,
+      };
+    }
+  }
+
+  return {
+    characters,
+    campaign: { fellowshipScratchedCount },
+    sessionStats,
+  };
 }
 
 export async function getCharacterWithCampaign(

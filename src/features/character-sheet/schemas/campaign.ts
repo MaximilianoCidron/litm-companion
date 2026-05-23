@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CampaignId, CharacterId } from "./ids";
+import { CampaignId, CharacterId, SessionId } from "./ids";
 import { PowerTagSchema, WeaknessTagSchema } from "./tag";
 
 /**
@@ -43,6 +43,10 @@ export const CampaignSchema = z.object({
   // resource.data.playerUids` check (rules can't `.map()` over an array of
   // objects). Maintained by createCampaign/joinCampaign/leaveCampaign.
   playerUids: z.array(z.string().min(1)).max(8),
+  // Active session denorm — kept in sync by start-session / end-session
+  // actions only. Pre-feature campaigns parse as null via .default().
+  activeSessionId: SessionId.nullable().default(null),
+  activeSessionNumber: z.number().int().nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

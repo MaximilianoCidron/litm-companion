@@ -13,6 +13,7 @@ import { buildBlankTheme } from "../lib/character-factory";
 import { buildSummaryMessage } from "../lib/moment-of-fulfillment";
 import {
   getAuthorDisplayName,
+  resolveActiveSessionId,
   summarizeMomentOfFulfillment,
   writeLogEntry,
 } from "../lib/session-log";
@@ -39,6 +40,12 @@ export const resolveMomentOfFulfillment = withAction(
         tx,
       );
       const character = firestoreToCharacter(snap);
+
+      // Pre-resolve active session in the read phase.
+      const logCampaignId = character.campaignIds[0] ?? null;
+      const sessionId = logCampaignId
+        ? await resolveActiveSessionId(tx, logCampaignId)
+        : null;
 
       if (character.status === "retired") {
         throw new ActionError(
@@ -159,7 +166,6 @@ export const resolveMomentOfFulfillment = withAction(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      const logCampaignId = character.campaignIds[0] ?? null;
       if (logCampaignId) {
         writeLogEntry(tx, {
           campaignId: logCampaignId,
@@ -177,6 +183,7 @@ export const resolveMomentOfFulfillment = withAction(
             chosenPath: choice.kind,
             burnedTagsRestored: entry.burnedTagsRestored,
           },
+          sessionId,
         });
       } else {
         // eslint-disable-next-line no-console

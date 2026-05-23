@@ -2,12 +2,13 @@
 import { enableMapSet } from "immer";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import type { MightModifier, TagLocation } from "../schemas";
+import type { MightModifier, StatusLocation, TagLocation } from "../schemas";
 import type { StatusId, TagId } from "../schemas/ids";
 
 enableMapSet();
 
 export type TagInvocationKey = string;
+export type StatusInvocationKey = string;
 
 export interface InvokedTagEntry {
   tagId: TagId;
@@ -15,9 +16,14 @@ export interface InvokedTagEntry {
   burn: boolean;
 }
 
+export interface InvokedStatusEntry {
+  statusId: StatusId;
+  location: StatusLocation;
+}
+
 export interface RollBuilderState {
   invokedTags: Map<TagInvocationKey, InvokedTagEntry>;
-  invokedStatuses: Set<StatusId>;
+  invokedStatuses: Map<StatusInvocationKey, InvokedStatusEntry>;
   mightModifier: MightModifier;
   isReaction: boolean;
   expanded: boolean;
@@ -25,10 +31,13 @@ export interface RollBuilderState {
   resultDialogAnimate: boolean;
   reactingToPendingThreatId: string | null;
   reactingToCampaignId: string | null;
+  isDetailedAction: boolean;
+  detailedActionChallengeId: string | null;
+  detailedActionCampaignId: string | null;
 
   toggleTag(key: TagInvocationKey, payload: Omit<InvokedTagEntry, "burn">): void;
   toggleBurn(key: TagInvocationKey): void;
-  toggleStatus(id: StatusId): void;
+  toggleStatus(key: StatusInvocationKey, payload: InvokedStatusEntry): void;
   setMight(m: MightModifier): void;
   setReaction(b: boolean): void;
   setExpanded(b: boolean): void;
@@ -36,6 +45,11 @@ export interface RollBuilderState {
   closeResultDialog(): void;
   beginReaction(pendingThreatId: string, campaignId: string): void;
   clearReaction(): void;
+  setDetailedAction(
+    challengeId: string | null,
+    campaignId: string | null,
+  ): void;
+  clearDetailedAction(): void;
   reset(): void;
   resetSelectionOnly(): void;
 }
@@ -53,10 +67,18 @@ export function makeTagKey(
   return `relationship:${location.relationshipId}`;
 }
 
+export function makeStatusKey(
+  location: StatusLocation,
+  statusId: StatusId,
+): StatusInvocationKey {
+  if (location.kind === "character") return `character:${statusId}`;
+  return `challenge:${location.challengeId}:${statusId}`;
+}
+
 export const useRollBuilder = create<RollBuilderState>()(
   immer((set) => ({
     invokedTags: new Map<TagInvocationKey, InvokedTagEntry>(),
-    invokedStatuses: new Set<StatusId>(),
+    invokedStatuses: new Map<StatusInvocationKey, InvokedStatusEntry>(),
     mightModifier: 0 as MightModifier,
     isReaction: false,
     expanded: false,
@@ -64,6 +86,9 @@ export const useRollBuilder = create<RollBuilderState>()(
     resultDialogAnimate: true,
     reactingToPendingThreatId: null,
     reactingToCampaignId: null,
+    isDetailedAction: false,
+    detailedActionChallengeId: null,
+    detailedActionCampaignId: null,
 
     toggleTag: (key, payload) =>
       set((s) => {
@@ -78,10 +103,13 @@ export const useRollBuilder = create<RollBuilderState>()(
         const entry = s.invokedTags.get(key);
         if (entry) entry.burn = !entry.burn;
       }),
-    toggleStatus: (id) =>
+    toggleStatus: (key, payload) =>
       set((s) => {
-        if (s.invokedStatuses.has(id)) s.invokedStatuses.delete(id);
-        else s.invokedStatuses.add(id);
+        if (s.invokedStatuses.has(key)) {
+          s.invokedStatuses.delete(key);
+        } else {
+          s.invokedStatuses.set(key, payload);
+        }
       }),
     setMight: (m) =>
       set((s) => {
@@ -114,12 +142,38 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.expanded = true;
         s.reactingToPendingThreatId = pendingThreatId;
         s.reactingToCampaignId = campaignId;
+        // Mutually exclusive with Detailed action.
+        s.isDetailedAction = false;
+        s.detailedActionChallengeId = null;
+        s.detailedActionCampaignId = null;
       }),
     clearReaction: () =>
       set((s) => {
         s.reactingToPendingThreatId = null;
         s.reactingToCampaignId = null;
         s.isReaction = false;
+      }),
+    setDetailedAction: (challengeId, campaignId) =>
+      set((s) => {
+        if (challengeId && campaignId) {
+          s.isDetailedAction = true;
+          s.detailedActionChallengeId = challengeId;
+          s.detailedActionCampaignId = campaignId;
+          // Mutually exclusive with Reaction.
+          s.isReaction = false;
+          s.reactingToPendingThreatId = null;
+          s.reactingToCampaignId = null;
+        } else {
+          s.isDetailedAction = false;
+          s.detailedActionChallengeId = null;
+          s.detailedActionCampaignId = null;
+        }
+      }),
+    clearDetailedAction: () =>
+      set((s) => {
+        s.isDetailedAction = false;
+        s.detailedActionChallengeId = null;
+        s.detailedActionCampaignId = null;
       }),
     reset: () =>
       set((s) => {
@@ -132,6 +186,9 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.resultDialogAnimate = true;
         s.reactingToPendingThreatId = null;
         s.reactingToCampaignId = null;
+        s.isDetailedAction = false;
+        s.detailedActionChallengeId = null;
+        s.detailedActionCampaignId = null;
       }),
     resetSelectionOnly: () =>
       set((s) => {
@@ -141,14 +198,19 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.isReaction = false;
         s.reactingToPendingThreatId = null;
         s.reactingToCampaignId = null;
+        s.isDetailedAction = false;
+        s.detailedActionChallengeId = null;
+        s.detailedActionCampaignId = null;
       }),
   })),
 );
 
 export const useInvokedTags = (): Map<TagInvocationKey, InvokedTagEntry> =>
   useRollBuilder((s) => s.invokedTags);
-export const useInvokedStatuses = (): Set<StatusId> =>
-  useRollBuilder((s) => s.invokedStatuses);
+export const useInvokedStatuses = (): Map<
+  StatusInvocationKey,
+  InvokedStatusEntry
+> => useRollBuilder((s) => s.invokedStatuses);
 export const useMightModifier = (): MightModifier =>
   useRollBuilder((s) => s.mightModifier);
 export const useIsReaction = (): boolean => useRollBuilder((s) => s.isReaction);
@@ -162,3 +224,9 @@ export const useReactingToPendingThreatId = (): string | null =>
   useRollBuilder((s) => s.reactingToPendingThreatId);
 export const useReactingToCampaignId = (): string | null =>
   useRollBuilder((s) => s.reactingToCampaignId);
+export const useIsDetailedAction = (): boolean =>
+  useRollBuilder((s) => s.isDetailedAction);
+export const useDetailedActionChallengeId = (): string | null =>
+  useRollBuilder((s) => s.detailedActionChallengeId);
+export const useDetailedActionCampaignId = (): string | null =>
+  useRollBuilder((s) => s.detailedActionCampaignId);

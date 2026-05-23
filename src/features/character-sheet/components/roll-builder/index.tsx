@@ -12,6 +12,7 @@ import {
   useRollBuilderExpanded,
 } from "../../stores/roll-builder";
 import { DesktopTrigger } from "./desktop-trigger";
+import { DetailedActionPicker } from "./detailed-action-picker";
 import { MightSelector } from "./might-selector";
 import { MobileBar } from "./mobile-bar";
 import { PowerSummary } from "./power-summary";
@@ -26,6 +27,7 @@ function PanelBody() {
     <>
       <ReactingIndicator />
       <ReactionToggle />
+      <DetailedActionPicker />
       <Separator />
       <TagPicker />
       <Separator />

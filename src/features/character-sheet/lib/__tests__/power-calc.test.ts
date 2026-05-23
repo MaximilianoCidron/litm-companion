@@ -143,6 +143,8 @@ function buildCampaign(
     roster: [],
     characterIds: [],
     playerUids: [],
+    activeSessionId: null,
+    activeSessionNumber: null,
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -239,8 +241,8 @@ describe("computePower", () => {
       {
         tags: [],
         statuses: [
-          { statusId: "s1" as Status["id"] },
-          { statusId: "s2" as Status["id"] },
+          { statusId: "s1" as Status["id"], location: { kind: "character" } },
+          { statusId: "s2" as Status["id"], location: { kind: "character" } },
         ],
       },
       0,
@@ -264,8 +266,8 @@ describe("computePower", () => {
       {
         tags: [],
         statuses: [
-          { statusId: "s1" as Status["id"] },
-          { statusId: "s2" as Status["id"] },
+          { statusId: "s1" as Status["id"], location: { kind: "character" } },
+          { statusId: "s2" as Status["id"], location: { kind: "character" } },
         ],
       },
       0,
@@ -321,7 +323,9 @@ describe("computePower", () => {
             burn: false,
           },
         ],
-        statuses: [{ statusId: "s1" as Status["id"] }],
+        statuses: [
+          { statusId: "s1" as Status["id"], location: { kind: "character" } },
+        ],
       },
       3,
     );
@@ -644,6 +648,8 @@ describe("computePower", () => {
           tags: [
             { id: tagId, name: "Worn", polarity: "hindering" as const, scratched: true },
           ],
+          statuses: [],
+          limits: [],
           updatedAt: NOW,
         },
       ],
@@ -680,6 +686,8 @@ describe("computePower", () => {
           tags: [
             { id: tagId, name: "Loyal", polarity: "helpful" as const, scratched: false },
           ],
+          statuses: [],
+          limits: [],
           updatedAt: NOW,
         },
       ],
@@ -715,6 +723,8 @@ describe("computePower", () => {
           tags: [
             { id: tagId, name: "Brutish", polarity: "hindering" as const, scratched: false },
           ],
+          statuses: [],
+          limits: [],
           updatedAt: NOW,
         },
       ],
@@ -734,6 +744,161 @@ describe("computePower", () => {
       ],
       statuses: [],
     }, 0);
+    assert.equal(result.total, -1);
+  });
+
+  // ---- Challenge status invocations (prompt 19) ----
+
+  it("25. challenge helpful status contributes signed tier", () => {
+    const challengeId = "ch-1" as never;
+    const statusId = "cs1" as Status["id"];
+    const engaged = new Map([
+      [
+        challengeId as unknown as string,
+        {
+          id: challengeId,
+          campaignId: "camp-eng" as CampaignId,
+          name: "Wise Sage",
+          tags: [],
+          statuses: [status(statusId, "Insightful", 3, "helpful")],
+          limits: [],
+          updatedAt: NOW,
+        },
+      ],
+    ]);
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const result = computePower(
+      c,
+      null,
+      engaged,
+      {
+        tags: [],
+        statuses: [
+          {
+            statusId,
+            location: {
+              kind: "challenge",
+              campaignId: "camp-eng" as CampaignId,
+              challengeId,
+            },
+          },
+        ],
+      },
+      0,
+    );
+    assert.equal(result.total, 3);
+  });
+
+  it("26. challenge hindering status contributes negative signed tier", () => {
+    const challengeId = "ch-1" as never;
+    const statusId = "cs1" as Status["id"];
+    const engaged = new Map([
+      [
+        challengeId as unknown as string,
+        {
+          id: challengeId,
+          campaignId: "camp-eng" as CampaignId,
+          name: "Storm Wall",
+          tags: [],
+          statuses: [status(statusId, "Battered", 2, "hindering")],
+          limits: [],
+          updatedAt: NOW,
+        },
+      ],
+    ]);
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const result = computePower(
+      c,
+      null,
+      engaged,
+      {
+        tags: [],
+        statuses: [
+          {
+            statusId,
+            location: {
+              kind: "challenge",
+              campaignId: "camp-eng" as CampaignId,
+              challengeId,
+            },
+          },
+        ],
+      },
+      0,
+    );
+    assert.equal(result.total, -2);
+  });
+
+  it("27. challenge status invocation rejected when challenge not engaged", () => {
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const res = resolveInvocations(c, null, new Map(), {
+      tags: [],
+      statuses: [
+        {
+          statusId: "cs1" as Status["id"],
+          location: {
+            kind: "challenge",
+            campaignId: "camp-eng" as CampaignId,
+            challengeId: "ch-missing" as never,
+          },
+        },
+      ],
+    });
+    assert.equal(res.ok, false);
+  });
+
+  it("28. character + challenge statuses pool by polarity — only highest of each side counts", () => {
+    const challengeId = "ch-1" as never;
+    const challengeStatusId = "cs1" as Status["id"];
+    const engaged = new Map([
+      [
+        challengeId as unknown as string,
+        {
+          id: challengeId,
+          campaignId: "camp-eng" as CampaignId,
+          name: "Shadow",
+          tags: [],
+          statuses: [status(challengeStatusId, "Looming", 4, "hindering")],
+          limits: [],
+          updatedAt: NOW,
+        },
+      ],
+    ]);
+    const c = character(
+      [],
+      [],
+      [
+        status("s1", "Inspired", 2, "helpful"),
+        status("s2", "Confident", 3, "helpful"),
+        status("s3", "Sleepy", 1, "hindering"),
+      ],
+      [],
+      ["camp-eng" as CampaignId],
+    );
+    const result = computePower(
+      c,
+      null,
+      engaged,
+      {
+        tags: [],
+        statuses: [
+          { statusId: "s1" as Status["id"], location: { kind: "character" } },
+          { statusId: "s2" as Status["id"], location: { kind: "character" } },
+          { statusId: "s3" as Status["id"], location: { kind: "character" } },
+          {
+            statusId: challengeStatusId,
+            location: {
+              kind: "challenge",
+              campaignId: "camp-eng" as CampaignId,
+              challengeId,
+            },
+          },
+        ],
+      },
+      0,
+    );
+    // Pool: helpful max = 3 (s2). Hindering max tier = 4 (challenge "Looming").
+    // Net = 3 + (-4) = -1.
     assert.equal(result.total, -1);
   });
 });

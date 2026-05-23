@@ -1,12 +1,14 @@
 // TODO(refactor): promote campaign subdomain to its own feature.
 "use client";
 import Link from "next/link";
-import { ScrollText } from "lucide-react";
+import { CalendarClock, ScrollText } from "lucide-react";
 import { useCampaign } from "../CampaignProvider";
 import { FellowshipDisplay } from "../fellowship/fellowship-display";
 import { ChallengesPanel } from "./challenges";
+import { EngagedChallengesSection } from "./engaged-challenges";
 import { InvitationsPanel } from "./invitations-panel";
 import { RosterView } from "./roster-view";
+import { SessionStatusBar } from "./session-status";
 import { SettingsPanel } from "./settings-panel";
 
 interface CampaignPageShellProps {
@@ -42,6 +44,7 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
 
   return (
     <div className="flex flex-col gap-6 p-6 md:p-10">
+      <SessionStatusBar />
       <header className="flex flex-col gap-1">
         <span className="font-display text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
           Fellowship
@@ -50,13 +53,22 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
           <h1 className="font-display text-3xl text-ink-base dark:text-parchment-base">
             {live.name}
           </h1>
-          <Link
-            href={`/campaigns/${live.id}/log`}
-            className="inline-flex items-center gap-1 text-sm text-ember hover:underline"
-          >
-            <ScrollText className="h-4 w-4" aria-hidden="true" />
-            Session log
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/campaigns/${live.id}/sessions`}
+              className="inline-flex items-center gap-1 text-sm text-ember hover:underline"
+            >
+              <CalendarClock className="h-4 w-4" aria-hidden="true" />
+              Sessions
+            </Link>
+            <Link
+              href={`/campaigns/${live.id}/log`}
+              className="inline-flex items-center gap-1 text-sm text-ember hover:underline"
+            >
+              <ScrollText className="h-4 w-4" aria-hidden="true" />
+              Session log
+            </Link>
+          </div>
         </div>
         {isGm ? (
           <p className="text-xs font-display uppercase tracking-wider text-ember">
@@ -64,6 +76,8 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
           </p>
         ) : null}
       </header>
+
+      <EngagedChallengesSection />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         <FellowshipDisplay campaign={live} canEdit={isGm} />

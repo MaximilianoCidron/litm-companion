@@ -18,16 +18,29 @@ import { requireCampaignGm } from "../lib/access";
 import { firestoreToChallenge } from "../lib/serialize";
 import { syncEngagedMirror } from "../lib/engaged-challenge-sync";
 
-// Ops that change a player-visible field (name or tags). When the challenge
-// is currently engaged, these must re-sync the mirror so player views stay
-// in lock-step with the source.
-const MIRROR_AFFECTING_OPS = new Set<MutateChallengeInput["op"]["kind"]>([
+// Identity + tag ops always sync mirror when engaged. Status/limit ops sync
+// only when their expose-flag is also true (and engaged). Toggle ops (engaged
+// / expose*) always sync since they change mirror existence or shape.
+const IDENTITY_OR_TAG_OPS = new Set<MutateChallengeInput["op"]["kind"]>([
   "setName",
   "addTag",
   "removeTag",
   "renameTag",
   "toggleTagScratch",
   "refreshTags",
+]);
+const STATUS_AFFECTING_OPS = new Set<MutateChallengeInput["op"]["kind"]>([
+  "addStatus",
+  "removeStatus",
+  "setStatusTier",
+  "renameStatus",
+]);
+const LIMIT_AFFECTING_OPS = new Set<MutateChallengeInput["op"]["kind"]>([
+  "addLimit",
+  "removeLimit",
+  "renameLimit",
+  "updateLimitThreshold",
+  "updateLimitCurrent",
 ]);
 
 const STATUS_LIMIT = 20;
@@ -250,6 +263,14 @@ export const mutateChallenge = withAction(
           next.tags = next.tags.map((t) => ({ ...t, scratched: false }));
           break;
         }
+        case "setExposeStatuses": {
+          next.exposeStatuses = op.exposeStatuses;
+          break;
+        }
+        case "setExposeLimits": {
+          next.exposeLimits = op.exposeLimits;
+          break;
+        }
       }
 
       tx.update(ref, {
@@ -266,13 +287,23 @@ export const mutateChallenge = withAction(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Mirror sync. `setEngaged` always re-syncs (creates or deletes mirror).
-      // Other mirror-affecting ops only sync when the challenge is currently
-      // engaged — otherwise the mirror doesn't exist and a delete would be
-      // an unnecessary no-op write.
-      const needsSync =
+      // Mirror sync. Toggle ops always re-sync (they change mirror existence
+      // or shape). Content ops only sync when the relevant area is exposed
+      // AND the challenge is engaged.
+      let needsSync = false;
+      if (
         op.kind === "setEngaged" ||
-        (MIRROR_AFFECTING_OPS.has(op.kind) && next.engaged);
+        op.kind === "setExposeStatuses" ||
+        op.kind === "setExposeLimits"
+      ) {
+        needsSync = true;
+      } else if (next.engaged) {
+        if (IDENTITY_OR_TAG_OPS.has(op.kind)) needsSync = true;
+        else if (STATUS_AFFECTING_OPS.has(op.kind) && next.exposeStatuses)
+          needsSync = true;
+        else if (LIMIT_AFFECTING_OPS.has(op.kind) && next.exposeLimits)
+          needsSync = true;
+      }
       if (needsSync) {
         syncEngagedMirror(tx, next);
       }

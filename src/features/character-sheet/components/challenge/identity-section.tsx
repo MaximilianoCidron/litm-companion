@@ -138,12 +138,120 @@ function EngagementToggle() {
         </Button>
       </div>
       {engaged ? (
-        <p className="inline-flex items-center gap-1.5 text-xs text-ember-text-light dark:text-ember-text-dark">
-          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-          Players can see {challenge.tags.length} tag
-          {challenge.tags.length === 1 ? "" : "s"} right now.
-        </p>
+        <>
+          <p className="inline-flex items-center gap-1.5 text-xs text-ember-text-light dark:text-ember-text-dark">
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+            Players can see {challenge.tags.length} tag
+            {challenge.tags.length === 1 ? "" : "s"} right now.
+          </p>
+          <ExposureSubsection />
+        </>
       ) : null}
+    </div>
+  );
+}
+
+function ExposureRow({
+  label,
+  description,
+  checked,
+  onToggle,
+  disabled = false,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onToggle?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs font-display uppercase tracking-wider text-ink-base dark:text-parchment-base">
+          {label}
+        </span>
+        <span className="text-xs text-ink-muted dark:text-parchment-muted">
+          {description}
+        </span>
+      </div>
+      <Button
+        type="button"
+        variant={checked ? "primary" : "secondary"}
+        size="sm"
+        role="switch"
+        aria-checked={checked}
+        aria-label={`${checked ? "Hide" : "Show"} ${label.toLowerCase()} from players`}
+        disabled={disabled}
+        onClick={onToggle}
+      >
+        {checked ? (
+          <>
+            <Eye className="h-4 w-4" aria-hidden="true" />
+            Shown
+          </>
+        ) : (
+          <>
+            <EyeOff className="h-4 w-4" aria-hidden="true" />
+            Hidden
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function ExposureSubsection() {
+  const { challenge } = useChallenge();
+  const callAction = useActionWithToast();
+
+  const toggleStatuses = () => {
+    void callAction(
+      mutateChallenge({
+        challengeId: challenge.id,
+        campaignId: challenge.campaignId,
+        op: {
+          kind: "setExposeStatuses",
+          exposeStatuses: !challenge.exposeStatuses,
+        },
+      }),
+    );
+  };
+  const toggleLimits = () => {
+    void callAction(
+      mutateChallenge({
+        challengeId: challenge.id,
+        campaignId: challenge.campaignId,
+        op: {
+          kind: "setExposeLimits",
+          exposeLimits: !challenge.exposeLimits,
+        },
+      }),
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-1 border-t border-mist-light pt-3 dark:border-mist-dark">
+      <h4 className="font-display text-xs uppercase tracking-wider text-ink-muted dark:text-parchment-muted">
+        Exposure
+      </h4>
+      <ExposureRow
+        label="Tags"
+        description="Always shown while engaged."
+        checked={true}
+        disabled
+      />
+      <ExposureRow
+        label="Statuses"
+        description="Let players see and invoke statuses on this challenge."
+        checked={challenge.exposeStatuses}
+        onToggle={toggleStatuses}
+      />
+      <ExposureRow
+        label="Limits"
+        description="Show progress bars on engaged challenge cards."
+        checked={challenge.exposeLimits}
+        onToggle={toggleLimits}
+      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   firestoreToCharacter,
 } from "../lib/serialize";
 import {
+  activeSessionIdFrom,
   getAuthorDisplayName,
   summarizeThreatDelivery,
   writeLogEntry,
@@ -40,7 +41,12 @@ export const deliverThreat = withAction(
     const db = getAdminDb();
 
     return db.runTransaction(async (tx) => {
-      await requireCampaignGm(input.campaignId, ctx.uid, tx);
+      const { snap: campSnap } = await requireCampaignGm(
+        input.campaignId,
+        ctx.uid,
+        tx,
+      );
+      const sessionId = activeSessionIdFrom(campSnap.data() ?? undefined);
 
       // Read challenge → locate threat.
       const challengeRef = db
@@ -243,6 +249,7 @@ export const deliverThreat = withAction(
           consequenceKind: template.kind,
           consequenceSummary: logText,
         },
+        sessionId,
       });
 
       return {
