@@ -1,7 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Backpack, BookOpen, Leaf, Scroll, Users } from "lucide-react";
+import {
+  Backpack,
+  BookOpen,
+  History,
+  Leaf,
+  Scroll,
+  Users,
+} from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 
 const sections = [
@@ -10,6 +17,7 @@ const sections = [
   { key: "backpack", label: "Pack", Icon: Backpack },
   { key: "fellowship", label: "Fellow", Icon: Users },
   { key: "statuses", label: "Status", Icon: Leaf },
+  { key: "history", label: "Rolls", Icon: History },
 ] as const;
 
 export function BookTabBarMobile({ charId }: { charId: string }) {

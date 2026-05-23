@@ -2,7 +2,7 @@
 
 > **Update rule:** Refresh after any change that alters stack, architecture, routes, data model, auth flow, or major features — **before** committing those changes. Canonical snapshot of "what this app is right now."
 
-Last updated: 2026-05-19 (Roll Builder: Zustand store, `<RollPanel>` sidebar + mobile bottom-sheet, server-side 2d6 dice via `node:crypto`, `commitRoll` action persists rolls to `characters/{id}/rolls/{rollId}` subcollection, burn + weakness-improve side effects, result dialog with tier banner)
+Last updated: 2026-05-22 (Challenges feature: GM-only `campaigns/{cid}/challenges/{id}` subcollection with full editor — identity, tags, statuses, limits, threats, notes — and atomic `deliverThreat` action that applies templated consequences to player characters; Camp/Rest flow: `endCampActivity` action + `<MakeCampDialog>` with rest/reflect/campAction; Roll History view at `/characters/[charId]/history`; vertical-text `BookTabNav` with 6 sections; `<CharacterHeader>` removed)
 
 ---
 
@@ -51,7 +51,13 @@ Wiring:
 - Persistent state → optimistic UI OK.
 - Ephemeral state (statuses, scratched flags, declared threats) → no optimistic UI; wait for snapshot.
 - Offline > 3s → disable mechanical actions, show banner.
-- Camp mode → batch writes per character.
+- Camp mode → atomic per-character via `endCampActivity` (single transaction).
+
+Collections:
+- `characters/{charId}` — owner + GM r/w. Sub: `rolls/{rollId}` server-written; reads gated to owner + GM.
+- `campaigns/{campaignId}` — GM + member read; server-only write. Sub: `challenges/{challengeId}` GM-only read; server-only write.
+- `users/{uid}` — self-only.
+- `invitations/{invitationId}` — single-doc get for redemption flow; list gated to GM via `where(campaignId,==,X)`.
 
 ## 4. Authentication
 
@@ -74,161 +80,189 @@ src/
 │   │   └── login/page.tsx
 │   ├── (app)/                                 # Auth-guarded shell
 │   │   ├── layout.tsx                         # verifySessionCookie + AppHeader
-│   │   ├── dashboard/
-│   │   │   ├── page.tsx                       # getMyCharacters (real Admin SDK read)
-│   │   │   ├── loading.tsx                    # 8-card skeleton grid
-│   │   │   └── error.tsx                      # Client error boundary
-│   │   └── characters/[charId]/
-│   │       ├── layout.tsx                     # getCharacter + CharacterProvider + tab navs
-│   │       ├── page.tsx                       # redirect → ./hero
-│   │       ├── loading.tsx                    # Two-column shell skeleton
-│   │       ├── error.tsx                      # Client error boundary (detects forbidden)
-│   │       ├── not-found.tsx                  # "Hero not found" card
-│   │       ├── hero/page.tsx                  # thin: <HeroSection />
-│   │       ├── themes/page.tsx                # thin: <ThemesSection />
-│   │       ├── backpack/page.tsx              # thin: <BackpackSection />
-│   │       ├── fellowship/page.tsx            # thin: <FellowshipSection />
-│   │       └── statuses/page.tsx              # thin: <StatusesSection />
+│   │   ├── dashboard/                         # Character grid (own characters)
+│   │   ├── campaigns/
+│   │   │   ├── page.tsx                       # getMyCampaigns list + Create dialog
+│   │   │   ├── loading.tsx / error.tsx
+│   │   │   └── [campaignId]/
+│   │   │       ├── layout.tsx                 # getCampaignWithRoster + Campaign+RosterProvider
+│   │   │       ├── page.tsx                   # <CampaignPageShell />
+│   │   │       ├── loading.tsx / error.tsx / not-found.tsx
+│   │   │       └── challenges/[challengeId]/  # GM-only challenge editor
+│   │   │           ├── layout.tsx             # getChallenge + ChallengeProvider
+│   │   │           ├── page.tsx               # <ChallengeEditor />
+│   │   │           └── loading|error|not-found.tsx
+│   │   ├── characters/[charId]/
+│   │   │   ├── layout.tsx                     # getCharacterWithCampaign + Character+Campaign providers + tab navs + <RollPanel /> + <RollResultDialog />
+│   │   │   ├── page.tsx                       # redirect → ./hero
+│   │   │   ├── loading.tsx                    # thin sidebar (md:w-14) + 6-tab skeleton
+│   │   │   ├── error.tsx / not-found.tsx
+│   │   │   ├── hero/page.tsx                  # <HeroSection />
+│   │   │   ├── themes/page.tsx
+│   │   │   ├── backpack/page.tsx
+│   │   │   ├── fellowship/page.tsx
+│   │   │   ├── statuses/page.tsx
+│   │   │   └── history/                       # roll history list
+│   │   │       ├── page.tsx                   # <HistoryView />
+│   │   │       └── loading.tsx
+│   │   └── invite/[token]/                    # invitation redemption surface
+│   │       ├── page.tsx
+│   │       └── not-found.tsx
 │   └── api/auth/session/route.ts              # POST/DELETE session cookie
 ├── features/
 │   ├── auth/
 │   │   ├── components/LoginForm.tsx
-│   │   ├── actions/sign-out.ts                # signOutAction
+│   │   ├── actions/sign-out.ts
 │   │   ├── lib/client-auth.ts
 │   │   ├── schemas/login.ts
 │   │   └── index.ts
 │   └── character-sheet/
 │       ├── components/
 │       │   ├── DashboardHeader.tsx
-│       │   ├── CharacterGrid.tsx
-│       │   ├── CharacterGridCard.tsx
-│       │   ├── CreateCharacterCard.tsx
-│       │   ├── CreateCharacterDialog.tsx      # Wired to createCharacter Server Action
-│       │   ├── BookTabNav.tsx                 # Vertical book-tab nav (md+)
+│       │   ├── CharacterGrid.tsx / CharacterGridCard.tsx
+│       │   ├── CreateCharacterCard.tsx / CreateCharacterDialog.tsx
+│       │   ├── BookTabNav.tsx                 # Thin md:w-14 vertical-text sidebar (6 tabs incl. History)
 │       │   ├── BookTabBarMobile.tsx           # Horizontal scrollable tabs (< md)
-│       │   ├── theme-card/                    # Interactive theme card (replaces ThemeCardPlaceholder)
-│       │   │   ├── index.tsx                  # <ThemeCard theme characterId canEdit>
-│       │   │   ├── type-selector.tsx          # DropdownMenu grouped by Might level
-│       │   │   ├── power-tag-list.tsx         # Read-only TagPill list w/ hover × remove
-│       │   │   ├── power-tag-adder.tsx        # Inline "+ Add tag" editor
-│       │   │   ├── weakness-tag-row.tsx       # EditableField → updateTag(rename)
-│       │   │   ├── track-row.tsx              # 3× Track (±1 stepper) + AdvancementBadge
-│       │   │   ├── advancement-badge.tsx      # Dispatcher → ImprovementDialog | EvolveDialog | ReplaceDialog
-│       │   │   ├── advancement-dialogs/       # Real advancement flows (replace "Coming soon" toast)
-│       │   │   │   ├── shared.tsx             # DialogFormShell + TypeOptionPicker
-│       │   │   │   ├── improvement-dialog.tsx # Radio: addTag | replaceWeakness | addImprovement
-│       │   │   │   ├── evolve-dialog.tsx      # Promote mightLevel + optional rename; Greatness ceiling path
-│       │   │   │   └── replace-dialog.tsx     # Fresh blank theme; destructive submit
-│       │   │   └── special-improvements-list.tsx  # Add/edit/remove rows
-│       │   ├── moment-of-fulfillment-badge.tsx  # Placeholder Dialog (Promise = 5)
-│       │   ├── roll-builder/                  # Persistent roll panel + dice flow
-│       │   │   ├── index.tsx                  # <RollPanel>: sticky sidebar (md+) + bottom-sheet (sm)
-│       │   │   ├── mobile-bar.tsx             # Sticky bottom strip on mobile; opens sheet
-│       │   │   ├── tag-picker.tsx             # Grouped invocable tags per theme + backpack
-│       │   │   ├── status-picker.tsx          # Helpful + Hindering groups; highest badge
-│       │   │   ├── might-selector.tsx         # 5-button group (-6..+6)
-│       │   │   ├── reaction-toggle.tsx        # Roll-vs-Reaction switch
-│       │   │   ├── power-summary.tsx          # Live computePower breakdown
-│       │   │   ├── roll-button.tsx            # Fires commitRoll via useActionWithToast
-│       │   │   └── result-dialog.tsx          # Snapshot-driven dice reveal + tier banner
-│       │   ├── statuses/                      # Full status CRUD (replaces placeholder)
-│       │   │   ├── index.tsx                  # <StatusManager />
-│       │   │   ├── status-editor.tsx          # EditableField name + StatusTierBar + clear
-│       │   │   └── add-status-form.tsx        # name + polarity + tier + add
-│       │   ├── CharacterProvider.tsx          # Client: hosts useCharacterSnapshot + exports useCharacter()
-│       │   ├── CharacterHeader.tsx            # Client: live name + concept (reads context)
-│       │   ├── ConnectionBanner.tsx           # Client: rust-soft strip when listener errors
+│       │   ├── ConnectionBanner.tsx           # rust-soft strip when listener errors
+│       │   ├── CharacterProvider.tsx          # useCharacterSnapshot + useCharacter()
+│       │   ├── CampaignProvider.tsx           # Char-scoped OR fixed-campaign variant; useCampaign() returns {status, campaign, role, error}
+│       │   ├── RosterProvider.tsx             # Server-fetched campaign roster; useRoster()
+│       │   ├── challenge-provider.tsx         # useChallengeSnapshot + useChallenge() (mounted only on challenge detail route)
+│       │   ├── moment-of-fulfillment-badge.tsx
+│       │   ├── theme-card/                    # Interactive theme card (TypeSelector, tags, weakness, tracks, advancement dialogs, improvements)
+│       │   ├── roll-builder/                  # Persistent roll panel (desktop sidebar + mobile bottom-sheet) + RollResultDialog (live + replay modes)
+│       │   ├── statuses/                      # Player status CRUD (StatusManager + StatusEditor + AddStatusForm)
+│       │   ├── backpack/add-story-tag-form.tsx
+│       │   ├── fellowship/                    # FellowshipDisplay (canEdit branches GM) + RelationshipManager + add-relationship-form
+│       │   ├── camp/                          # Make-camp dialog flow
+│       │   │   ├── make-camp-button.tsx
+│       │   │   ├── make-camp-dialog.tsx       # Activity picker + story-tag preservation + summary
+│       │   │   ├── activity-picker.tsx        # rest | reflect | campAction
+│       │   │   ├── reflect-theme-picker.tsx   # disables themes already at improve===3
+│       │   │   ├── story-tag-preservation-list.tsx  # Two-column toggle
+│       │   │   ├── camp-summary.tsx
+│       │   │   └── helpers.ts                 # forecastCamp + buildCampSummaryToast
+│       │   ├── history/                       # Roll history surface
+│       │   │   ├── index.tsx                  # <HistoryView />
+│       │   │   ├── filter-bar.tsx             # all / success / mixed / failure / reactions chips
+│       │   │   ├── roll-list.tsx
+│       │   │   ├── roll-list-row.tsx          # Row opens RollResultDialog in replay mode
+│       │   │   └── empty-state.tsx
+│       │   ├── campaign/                      # Campaign page surfaces
+│       │   │   ├── campaign-page-shell.tsx
+│       │   │   ├── campaign-badge.tsx
+│       │   │   ├── roster-view.tsx
+│       │   │   ├── invitations-panel.tsx / create-invitation-dialog.tsx
+│       │   │   ├── settings-panel.tsx / transfer-gm-dialog.tsx
+│       │   │   ├── create-campaign-dialog.tsx
+│       │   │   └── challenges/                # ChallengesPanel mounted in CampaignPageShell GM-only
+│       │   │       ├── index.tsx              # <ChallengesPanel />
+│       │   │       ├── challenge-list.tsx / challenge-card.tsx
+│       │   │       └── create-challenge-dialog.tsx
+│       │   ├── challenge/                     # Full ChallengeEditor (GM-only route)
+│       │   │   ├── index.tsx                  # <ChallengeEditor />
+│       │   │   ├── identity-section.tsx       # Name + concept + RolePicker + MightPicker
+│       │   │   ├── tags-section.tsx           # Challenge tags w/ ChallengeTagAdder (polarity-aware)
+│       │   │   ├── statuses-section.tsx       # Challenge-specific status editor + add form
+│       │   │   ├── limits-section.tsx         # Label + threshold + progress bar + +/-
+│       │   │   ├── threats-section.tsx        # Threat rows w/ DeliverThreatDialog
+│       │   │   ├── consequence-template-form.tsx  # Reusable applyStatus|markTrack|scratchTag|custom subform
+│       │   │   ├── deliver-threat-dialog.tsx  # 3-step (pickTarget → configure → confirm)
+│       │   │   ├── notes-section.tsx          # GM-private notes
+│       │   │   ├── delete-section.tsx
+│       │   │   ├── role-picker.tsx / might-picker.tsx
+│       │   │   └── helpers.ts                 # formatConsequenceTemplate + buildDeliverySuccessMessage
+│       │   ├── invite/redeem-invitation-view.tsx
 │       │   └── sections/                      # All "use client", consume useCharacter()
-│       │       ├── HeroSection.tsx
+│       │       ├── HeroSection.tsx            # Identity + Promise track + MakeCampButton + MoF badge
 │       │       ├── ThemesSection.tsx
-│       │       ├── BackpackSection.tsx
+│       │       ├── BackpackSection.tsx        # Story tag CRUD w/ preserve flag wired
 │       │       ├── FellowshipSection.tsx
 │       │       └── StatusesSection.tsx
-│       ├── actions/
-│       │   ├── create-character.ts            # createCharacter
-│       │   ├── update-tag.ts                  # updateTag (rename | scratch)
-│       │   ├── burn-tag.ts                    # burnTag (power tags only)
-│       │   ├── apply-status.ts                # applyStatus (add | update | clear)
-│       │   ├── mark-track.ts                  # markTrack (improve | milestone | abandon)
-│       │   ├── update-theme.ts                # updateTheme (rename | retype atomically with mightLevel | setQuest)
-│       │   ├── add-power-tag.ts               # addPowerTag (max 12 per theme)
-│       │   ├── remove-power-tag.ts            # removePowerTag
-│       │   ├── mutate-special-improvements.ts # mutateSpecialImprovements (add | remove | edit)
-│       │   ├── claim-improvement.ts           # claimImprovement (addTag | replaceWeakness | addImprovement); asserts improve===3; resets to 0
-│       │   ├── evolve-theme.ts                # evolveTheme; asserts milestone===3; bumps mightLevel + Promise (capped at 5)
-│       │   ├── replace-theme.ts               # replaceTheme; asserts abandon===3; swaps in buildBlankTheme; bumps Promise
-│       │   ├── commit-roll.ts                 # commitRoll (server-rolled 2d6 + Power); writes to characters/{id}/rolls/{rollId} subcollection
-│       │   └── index.ts                       # barrel (re-exports action fns only)
+│       ├── actions/                           # All Server Actions (export from index.ts)
+│       │   ├── create-character.ts
+│       │   ├── update-tag.ts                  # rename | scratch | setPreserved (backpack-only)
+│       │   ├── burn-tag.ts
+│       │   ├── apply-status.ts                # add | setTier | rename | clear
+│       │   ├── mark-track.ts
+│       │   ├── update-theme.ts                # rename | retype | setQuest
+│       │   ├── add-power-tag.ts / remove-power-tag.ts
+│       │   ├── add-story-tag.ts / remove-story-tag.ts
+│       │   ├── update-backpack-notes.ts
+│       │   ├── mutate-special-improvements.ts
+│       │   ├── claim-improvement.ts / evolve-theme.ts / replace-theme.ts
+│       │   ├── commit-roll.ts                 # Server 2d6 + Power; writes characters/{id}/rolls/{id}; scratches invoked fellowship tags
+│       │   ├── end-camp-activity.ts           # rest|reflect|campAction; atomic per-character
+│       │   ├── create-campaign.ts / rename-campaign.ts / transfer-gm.ts
+│       │   ├── join-campaign.ts / leave-campaign.ts / kick-from-campaign.ts
+│       │   ├── create-invitation.ts / revoke-invitation.ts / redeem-invitation.ts
+│       │   ├── mutate-fellowship.ts           # setName | setQuest | tags | weakness | tracks | improvements | refreshTags
+│       │   ├── mutate-relationships.ts
+│       │   ├── create-challenge.ts / delete-challenge.ts
+│       │   ├── mutate-challenge.ts            # Wide 21-op discriminator (identity/tags/statuses/limits/threats)
+│       │   ├── deliver-threat.ts              # Atomic single-tx; applies templated consequence to target
+│       │   └── index.ts
 │       ├── hooks/
-│       │   └── use-character-snapshot.ts      # Client: onSnapshot listener; last-known-good preservation
+│       │   ├── use-character-snapshot.ts
+│       │   ├── use-campaign-snapshot.ts
+│       │   ├── use-campaign-invitations.ts
+│       │   ├── use-challenges.ts              # Live list onSnapshot (GM-gated by rules)
+│       │   ├── use-challenge-snapshot.ts
+│       │   └── use-roll-history.ts            # Live characters/{id}/rolls limit 30 desc
 │       ├── lib/
-│       │   ├── access.ts                      # requireCharacterAccess (server; used by queries + actions)
-│       │   ├── queries.ts                     # getMyCharacters, getCharacter (Admin SDK Server Component reads)
-│       │   ├── character-factory.ts           # buildBlankCharacter() + buildBlankTheme() (reused by replaceTheme)
-│       │   ├── power-calc.ts                  # computePower + resolveInvocations (shared client+server)
-│       │   ├── __tests__/power-calc.test.ts   # node:test (run via `node --test --experimental-strip-types`)
-│       │   └── serialize.ts                   # firestoreToCharacter (SDK-agnostic duck-typed snapshot)
+│       │   ├── access.ts                      # requireCharacterAccess + requireCampaignGm + requireCampaignMembership
+│       │   ├── queries.ts                     # getMyCharacters, getCharacter, getCampaign, getMyCampaigns, getCampaignWithRoster, getCharacterWithCampaign, getInvitation, listChallenges, getChallenge
+│       │   ├── character-factory.ts           # buildBlankCharacter + buildBlankTheme
+│       │   ├── campaign-factory.ts            # buildBlankFellowship + buildBlankChallenge
+│       │   ├── power-calc.ts                  # computePower + resolveInvocations (shared); rejects scratched fellowship tags
+│       │   ├── serialize.ts                   # firestoreTo{Character,Campaign,Invitation,RollRecord,Challenge}; exported toIso helper
+│       │   └── __tests__/power-calc.test.ts   # node:test
 │       ├── stores/
-│       │   └── roll-builder.ts                # Zustand store: invokedTags Map, invokedStatuses Set, mightModifier, isReaction, expanded
+│       │   └── roll-builder.ts                # Zustand; resultDialogAnimate flag for live vs replay
 │       ├── schemas/
-│       │   ├── ids.ts                         # Branded IDs (CharacterId, ThemeId, TagId, StatusId, CampaignId, FellowshipRelationshipId)
-│       │   ├── tag.ts                         # PowerTag (refine burned⇒scratched), WeaknessTag, StoryTag
-│       │   ├── theme.ts                       # MightLevel, 17 namespaced ThemeType, ThemeSchema (refine type↔mightLevel), inferMightLevel
-│       │   ├── status.ts                      # Status (tier 1..6, helpful|hindering)
-│       │   ├── backpack.ts                    # Backpack (storyTags max 40, notes ≤ 2000)
-│       │   ├── progression.ts                 # Promise 0..5 + quintessences
-│       │   ├── identity.ts                    # Identity (name/concept/avatar/legendMistBalance)
-│       │   ├── fellowship.ts                  # FellowshipRelationship
-│       │   ├── character.ts                   # CharacterSchema + CharacterSummarySchema (authoritative)
+│       │   ├── ids.ts                         # Branded IDs: Character/Theme/Tag/Status/Campaign/FellowshipRelationship/Roll/Invitation/Challenge/Threat/Limit
+│       │   ├── tag.ts                         # PowerTag (refine burned⇒scratched), WeaknessTag, StoryTag (incl. preserved default false)
+│       │   ├── theme.ts                       # MightLevel, 17 ThemeType, refinement type↔mightLevel
+│       │   ├── status.ts / backpack.ts / progression.ts / identity.ts / fellowship.ts
+│       │   ├── character.ts                   # CharacterSchema (4-theme tuple) + Summary
+│       │   ├── campaign.ts                    # CampaignSchema + FellowshipThemeSchema + CampaignRosterEntry + Summary
+│       │   ├── invitation.ts                  # InvitationSchema + InvitationStatusSchema
+│       │   ├── roll.ts                        # TagLocation + ResolvedTagInvocation + RollRecord + RollTier
+│       │   ├── challenge.ts                   # ChallengeRole (11) + CHALLENGE_ROLE_DESCRIPTIONS + ChallengeTag + ChallengeLimit + ConsequenceTemplate + ChallengeThreat + Challenge + Summary
 │       │   ├── inputs.ts                      # ALL Server Action input schemas
 │       │   └── index.ts
 │       └── index.ts
 └── shared/
     ├── auth/
-    │   ├── errors.ts                          # ActionError, ActionResult<T>, ActionErrorCode
-    │   ├── require-auth.ts                    # requireAuth() — checkRevoked=true; returns {uid, email, displayName, photoURL}
-    │   ├── get-session-user.ts                # Server Component helper: redirect("/login") on UNAUTHENTICATED
-    │   ├── with-action.ts                     # withAction(schema, handler) for every Server Action
+    │   ├── errors.ts                          # ActionError (UNAUTHENTICATED|FORBIDDEN|NOT_FOUND|VALIDATION|INVALID_STATE|INTERNAL), ActionResult<T>
+    │   ├── require-auth.ts                    # requireAuth() checkRevoked=true
+    │   ├── get-session-user.ts                # Server Component helper; redirect("/login") on UNAUTHENTICATED
+    │   ├── with-action.ts                     # withAction(schema, handler)
     │   └── index.ts
     ├── firebase/
-    │   ├── client.ts
-    │   ├── admin.ts
-    │   └── session.ts                         # verifySessionCookie, requireUser
-    ├── stores/ui-store.ts                     # Zustand: theme + mobile drawer + active modal
+    │   ├── client.ts / admin.ts / session.ts
+    ├── stores/ui-store.ts
     ├── lib/
-    │   ├── cn.ts                              # clsx + tailwind-merge
-    │   ├── theme.ts                           # Theme type, getStored/setStored/applyTheme
-    │   └── dice.ts                            # server-only secureRollD6() via node:crypto
+    │   ├── cn.ts
+    │   ├── theme.ts
+    │   ├── dice.ts                            # server-only secureRollD6() via node:crypto
+    │   └── format.ts                          # formatRelativeTime (Intl.RelativeTimeFormat)
     ├── hooks/
-    │   ├── use-debounced-field-save.ts        # Generic debounced save with reconcile + state machine
-    │   └── use-action-with-toast.ts           # Wrap Server Action calls → ActionResult → toast
+    │   ├── use-debounced-field-save.ts
+    │   └── use-action-with-toast.ts
     ├── components/
-    │   ├── ThemeScript.tsx                    # Pre-hydration script (FOUC-free)
-    │   ├── Providers.tsx                      # TooltipProvider + Toaster + BodyScrollbar + theme hydration
-    │   ├── BodyScrollbar.tsx                  # Mounts OverlayScrollbars on document.body
-    │   ├── AppHeader.tsx                      # Sticky leather bar w/ breadcrumb
-    │   └── UserMenu.tsx                       # Avatar dropdown + theme submenu + sign-out
+    │   ├── ThemeScript.tsx / Providers.tsx / BodyScrollbar.tsx / AppHeader.tsx / UserMenu.tsx
     └── ui/                                    # Design-system primitives
-        ├── button.tsx                         # primary | secondary | ghost | destructive
-        ├── input.tsx
-        ├── dialog.tsx                         # Radix Dialog w/ leather header strip
-        ├── dropdown-menu.tsx                  # Radix DropdownMenu + sub-menu + radio items
-        ├── tabs.tsx                           # Radix Tabs (horizontal + vertical)
-        ├── toast.tsx + toaster.tsx + use-toast.ts  # Radix Toast + external store
-        ├── tooltip.tsx
-        ├── avatar.tsx                         # Radix Avatar (sm/md/lg)
-        ├── scroll-area.tsx                     # OverlayScrollbars wrapper (theme `os-theme-codex`)
-        ├── separator.tsx
-        ├── card.tsx                           # Card.Header (leather strip) + Body + Footer
-        ├── track.tsx                          # 3- or 5-pip discrete progress
-        ├── status-tier-bar.tsx                # 6-segment moss/rust polarity bar
-        ├── skeleton.tsx
-        ├── tag-pill.tsx                       # Canonical power/weakness/story pill
-        ├── tag-pill-icons.tsx                 # Sparkles/Thorn/Flame/Leaf icon exports
-        ├── gm-block.tsx                       # GM-veil left-border wrapper
-        ├── EditableField.tsx                  # Debounced-save input/textarea w/ status indicator
-        ├── ConfirmDialog.tsx                  # Destructive-confirm wrapper over Dialog
-        └── index.ts                           # Barrel
+        ├── button.tsx (primary|secondary|ghost|destructive · sm|md|lg|icon)
+        ├── input.tsx / dialog.tsx / dropdown-menu.tsx / tabs.tsx
+        ├── toast.tsx + toaster.tsx + use-toast.ts (no `info`; use `toast.show`)
+        ├── tooltip.tsx / avatar.tsx / scroll-area.tsx / separator.tsx
+        ├── card.tsx (default|inset|interactive variants)
+        ├── track.tsx / status-tier-bar.tsx / skeleton.tsx
+        ├── tag-pill.tsx                       # Read-only OR interactive; onTogglePreserve + Lock icon for preserved story tags
+        ├── tag-pill-icons.tsx / gm-block.tsx
+        ├── EditableField.tsx / ConfirmDialog.tsx
+        └── index.ts
 ```
 
 **Architectural boundary** (enforced by `eslint-plugin-boundaries`):
@@ -248,96 +282,95 @@ Highlights:
 
 ## 7. Current Feature State
 
-**Built (this branch):**
-- Firebase Auth (email/password + Google).
-- Session cookie issuance + verification.
-- Server-side route gating.
-- Sign-out Server Action.
-- Login UI with form validation.
-- **Dashboard** with character grid (stub data, 3 mocked characters).
-- **Character page shell** with vertical book-tab nav (Hero / Themes / Pack / Fellowship / Status) + horizontal mobile equivalent.
-- **5 section placeholder views** (skeletons, ThemeCardPlaceholder, StatusTierBar samples).
-- **15 design-system primitives** (`shared/ui/`): Button, Input, Dialog, DropdownMenu, Tabs, Toast/Toaster/use-toast, Tooltip, Avatar, ScrollArea, Separator, Card, Track, StatusTierBar, Skeleton, TagPill, GMBlock.
-- **App shell**: sticky leather header (Codex brand + breadcrumb + UserMenu), TooltipProvider + Toaster providers, ThemeScript for FOUC-free dark mode.
-- **Theme system**: light/dark/system via `useUIStore`, persisted in `localStorage` (`codex.theme`), pre-hydration script + post-hydration store sync.
-- **CreateCharacterDialog** placeholder (Server Action stub → toast.success "Coming soon").
+**Built (most recent pass — Challenges, GM-only):**
+- **Branded IDs**: `ChallengeId`, `ThreatId`, `LimitId` in `schemas/ids.ts`.
+- **`schemas/challenge.ts`** — 11 `ChallengeRole`s with `CHALLENGE_ROLE_DESCRIPTIONS` paraphrases, `ChallengeTag` (polarity from player POV), `ChallengeLimit` (label + threshold + current), `ConsequenceTemplate` discriminator (`applyStatus | markTrack | scratchTag | custom`), `ChallengeThreat`, `ChallengeSchema`, `ChallengeSummarySchema`.
+- **Inputs** in `schemas/inputs.ts`: `CreateChallengeInput`, `DeleteChallengeInput`, wide `MutateChallengeInput` (21 ops across identity/tags/statuses/limits/threats), `DeliverThreatInput` with optional `scratchTarget` and `markTrackTarget`.
+- **Server Actions**: `create-challenge`, `delete-challenge`, `mutate-challenge` (single-tx wide switch; silent clamp on limit current; idempotent updateThreat), `deliver-threat` (atomic single-tx: reads challenge + character, validates `character.campaignIds.includes(campaignId)`, branches on consequence kind — applyStatus writes new status; markTrack increments theme.tracks[track] clamped [0,3]; scratchTag flips backpack/theme power tag idempotently; custom returns description in result. Intentionally duplicates apply logic from `applyStatus`/`markTrack`/`updateTag` to preserve single transaction).
+- **`lib/queries.ts`**: `listChallenges(campaignId, uid)` (GM-gated, limit 50 desc) + `getChallenge(campaignId, challengeId, uid)`. `firestoreToChallenge` in `serialize.ts`.
+- **Hooks**: `useChallenges` (live list onSnapshot) + `useChallengeSnapshot` (single doc).
+- **`<ChallengeProvider>`** + `useChallenge()` — mounted only on challenge detail route.
+- **Route**: `(app)/campaigns/[campaignId]/challenges/[challengeId]/{layout,page,loading,error,not-found}.tsx`. Layout calls `getChallenge`; NOT_FOUND/FORBIDDEN → `notFound()`.
+- **`<ChallengesPanel>`** mounted GM-only in `<CampaignPageShell>` as a full-width row (`lg:col-span-2`).
+- **`<ChallengeEditor>`** sections: identity (RolePicker dropdown w/ descriptions + MightPicker radio + EditableField name/concept), tags (challenge-specific adder with polarity toggle; reuses `<TagPill>` story-helpful/-hindering palettes), statuses (challenge-specific editor/adder — separate from player's StatusEditor to avoid coupling), limits (label + numeric current/threshold + progress bar; `+`/`-` clamped; Overcome state at threshold; threshold edit dialog), threats (description + consequence summary; `<DeliverThreatDialog>` + edit + delete), notes (GM-private), delete (danger zone w/ redirect on success).
+- **`<DeliverThreatDialog>`** — 3-step state machine (`pickTarget` → `configure` → `confirm`) with `aria-live`. Skips `configure` for `applyStatus`/`custom`. `markTrack` configure picks theme (disables themes already at 3). `scratchTag` configure lists target's power tags grouped by theme + backpack story tags (disables scratched/burned). On success: `toast.success(buildDeliverySuccessMessage(result))` + extra `toast.show` for custom description.
+- **`<ConsequenceTemplateForm>`** reusable across add + edit. Radio of kind + kind-specific subfields.
+- **Firestore rules**: `match /campaigns/{campaignId}/challenges/{challengeId} { allow read: if GM via get(); allow write: if false; }`.
 
-**Built (most recent pass — Roll Builder):**
-- **Roll schemas** in `schemas/roll.ts`: `TagLocationSchema`, `ResolvedTagInvocationSchema`, `ResolvedStatusInvocationSchema`, `MightModifierSchema`, `RollTierSchema`, `RollRecordSchema`. Branded `RollId` added.
-- **Input schemas** in `schemas/inputs.ts`: `TagInvocationInputSchema`, `StatusInvocationInputSchema`, `CommitRollInput`.
-- **`features/character-sheet/lib/power-calc.ts`** — `computePower` + `resolveInvocations`. Pure, no I/O, shared between client live-preview and server roll. Status rule: highest tier per polarity contributes signed tier; others contribute 0. Power tag +1, burned +3, weakness -1 (self-invoke), story +1/-1.
-- **`shared/lib/dice.ts`** — server-only `secureRollD6()` via `node:crypto.randomInt`. `import "server-only"` guard.
-- **`commitRoll` Server Action** — transaction, requireCharacterAccess, resolveInvocations validation, dice roll, computePower (must match client), write to `characters/{charId}/rolls/{rollId}` subcollection, atomic side effects: burn tags + mark Improve on self-invoked weaknesses. Tier computed (≥10 success / ≥7 mixed / else failure; reactions are null).
-- **`firestore.rules`** patched — `rolls/{rollId}` subcollection: server-only writes, owner/GM reads.
-- **Zustand store** `features/character-sheet/stores/roll-builder.ts` — `Map<key, {tagId, location, burn}>` for tags, `Set<StatusId>` for statuses, `mightModifier`, `isReaction`, `expanded`, `resultDialogRollId`. `enableMapSet()` from immer. Selector hooks exported. Reset on character id change via `CharacterProvider` `useEffect`.
-- **Roll Panel UI** (`components/roll-builder/`): desktop sticky sidebar + mobile bottom-sheet via Dialog. Subcomponents: `MobileBar`, `TagPicker` (groups per theme + backpack), `StatusPicker` (highest-tier badge), `MightSelector` (5 buttons), `ReactionToggle`, `PowerSummary` (live `computePower` breakdown), `RollButton`, `RollResultDialog` (Firestore `onSnapshot` listener on the roll doc, staged dice reveal with `fx-celebrate`, polarity-tinted tier banner).
-- **Character layout** mounts `<RollPanel />` next to `<main>` and `<RollResultDialog />` inside the provider tree. `<main>` gets `pb-24 md:pb-10` to clear the mobile bar.
-- **Tests** in `lib/__tests__/power-calc.test.ts` — 13 cases via `node:test` + `node:assert/strict`. Runnable via `node --test --experimental-strip-types <path>`. No test runner deps added.
+**Built (prior pass — Camp/Rest flow):**
+- **Story tag schema** gains `preserved: z.boolean().default(false)`. Backwards-compatible via Zod default — legacy docs parse as `preserved: false`.
+- **`UpdateTagInput.patch`** gains `setPreserved` kind. Action rejects on theme/fellowship locations with `INVALID_STATE`.
+- **`MutateFellowshipInput.op`** gains `refreshTags` — unscratches all fellowship power tags. GM-driven; no auto-trigger.
+- **New `EndCampActivityInput`** + `end-camp-activity.ts` action — single transaction: unscratches non-burned power tags across all themes (burned tags survive camp — explicit comment); drops non-preserved story tags and unscratches survivors; rest clears all hindering statuses; reflect increments target theme.tracks.improve (rejects when already at 3); campAction returns trimmed description for toast.
+- **`commit-roll`** scratches each invoked fellowship power tag in the same transaction. `resolveInvocations` rejects scratched fellowship tags with explicit "exhausted — refresh the fellowship" message. Old `TODO(camp-rest-flow)` removed.
+- **`<TagPill>`** gains `onTogglePreserve?` + `isPreserved?` props. New menu item "Preserve when camping" / "Discard at next camp" between Rename and Burn; `Lock` icon shown when preserved. `BackpackSection` wires `onTogglePreserve` on story tags.
+- **`components/camp/`** — `<MakeCampButton>` (in HeroSection under Promise track, canEdit only), `<MakeCampDialog>` with `<ActivityPicker>`, `<ReflectThemePicker>` (disables themes already at improve===3), `<StoryTagPreservationList>` (two-column toggle), `<CampSummary>` (live forecast). Toast on success + secondary `toast.show` for campAction description.
+- **`<FellowshipDisplay>`** gains GM-only "Refresh fellowship tags" `<ConfirmDialog>` next to the power-tags header; falls back to dimmed "All tags ready" when nothing's scratched.
+- Tests: `power-calc.test.ts` adds 20a/20b for scratched-fellowship rejection + fresh acceptance.
+
+**Built (prior pass — Roll History view):**
+- **`hooks/use-roll-history.ts`** — live `onSnapshot` listener on `characters/{id}/rolls`, `orderBy("createdAt", "desc")` limit 30. Skips malformed docs with `console.warn` to keep the list resilient. The single client-side reader of rolls; no ad-hoc `getDocs` in components.
+- **`firestoreToRollRecord`** added to `lib/serialize.ts` (`toIso` exported for reuse).
+- **`shared/lib/format.ts`** — `formatRelativeTime(iso)` via `Intl.RelativeTimeFormat` (en). "just now" under 5s, seconds/minutes/hours/days, falls back to `toLocaleDateString` past a week.
+- **`stores/roll-builder.ts`** — new `resultDialogAnimate: boolean` flag + `openResultDialog(rollId, animate=true)` signature. `closeResultDialog` resets to `true`. New `useResultDialogAnimate` selector.
+- **`<RollResultDialog>`** branches on `animate`: live mode shows staggered dice reveal + `fx-celebrate`; replay mode shows final values immediately, no celebrate class, footer collapses to a single "Close" button (no `setExpanded(false)` side effect).
+- **`components/history/`** — `<HistoryView>` (skeleton + error-with-cached-data panel), `<FilterBar>` (radiogroup chips: all/success/mixed/failure/reactions with disabled-when-zero), `<RollList>` + `<RollListRow>` (button row opens `openResultDialog(roll.id, false)`; dice/total span hidden below `sm`).
+- **Route** `(app)/characters/[charId]/history/{page,loading}.tsx`. `HistoryView` exported from feature barrel.
+- **`<BookTabNav>` redesigned**: width shrunk from `md:w-40` → `md:w-14` (56px); labels rotated via `[writing-mode:vertical-rl] rotate-180`; tabs grow with `flex-1 min-h-32` so vertical text fits. 6 sections now (Hero/Themes/Pack/Fellowship/Status/History). `<BookTabBarMobile>` gets a sixth "Rolls" chip with the `History` icon.
+- **`[charId]/loading.tsx`** updated to match (6 tabs, thin sidebar, vertical label skeleton).
+- **`<CharacterHeader>`** deleted — redundant with section-internal headings.
+
+**Built (prior pass — Campaigns + Fellowships + Invitations):**
+- **Campaign schemas**: `CampaignSchema` (id, name, gmUid, fellowship, roster, characterIds, playerUids, timestamps), `FellowshipThemeSchema`, `CampaignRosterEntry`, `Summary`. `Invitation` schema with `InvitationStatus`.
+- **Server Actions**: `createCampaign`, `renameCampaign`, `transferGm`, `joinCampaign`, `leaveCampaign`, `kickFromCampaign`, `createInvitation`, `revokeInvitation`, `redeemInvitation`, `mutateFellowship` (wide discriminator), `mutateRelationships`.
+- **Server queries**: `getMyCampaigns`, `getCampaign`, `getCampaignWithRoster`, `getInvitation`.
+- **Hooks**: `useCampaignSnapshot`, `useCampaignInvitations`.
+- **Providers**: `<CampaignProvider>` (character-scoped OR fixed-campaign) with `useCampaign()` returning `{status, campaign, role}`. `<RosterProvider>` for the campaign-page server-fetched roster.
+- **Routes**: `(app)/campaigns/{page,loading,error}.tsx` (list); `(app)/campaigns/[campaignId]/{layout,page,loading,error,not-found}.tsx` (campaign page); `(app)/invite/[token]/{page,not-found}.tsx` (redemption).
+- **Components**: `<CampaignPageShell>` (Fellowship + Roster + Invitations + Settings + Challenges panels), `<FellowshipDisplay>` (canEdit branches GM), `<RosterView>`, `<InvitationsPanel>` + `<CreateInvitationDialog>`, `<SettingsPanel>` + `<TransferGmDialog>`, `<RelationshipManager>` + `<AddRelationshipForm>`, `<RedeemInvitationView>`, `<CampaignBadge>`, `<CreateCampaignDialog>`.
+- **Firestore rules**: `campaigns/{campaignId}` GM + member read; server-only write. `invitations/{id}` get for any signed-in user (redemption surface) + list gated to GM via `where(campaignId,==,X)`.
+
+**Built (prior pass — Roll Builder):**
+- **Roll schemas** in `schemas/roll.ts`. **Input schemas** in `schemas/inputs.ts` (`TagInvocationInputSchema`, `StatusInvocationInputSchema`, `CommitRollInput`).
+- **`lib/power-calc.ts`** — `computePower` + `resolveInvocations`. Pure, no I/O, shared client+server. Status rule: highest tier per polarity contributes signed tier; others 0. Power tag +1, burned +3, weakness -1, story +1/-1.
+- **`shared/lib/dice.ts`** — server-only `secureRollD6()` via `node:crypto`.
+- **`commitRoll` action** — transactional. resolveInvocations + dice + computePower (must match client) + write `rolls/{rollId}` + atomic side effects (burn theme tags, mark Improve on self-invoked weaknesses, scratch single-use story tags, scratch fellowship tags). Tier: `≥10 success / ≥7 mixed / else failure`; reactions tier is `null`.
+- **Firestore rules**: `rolls/{rollId}` subcollection server-only writes, owner/GM reads.
+- **Zustand store** `roll-builder.ts` — Map for tags, Set for statuses, mightModifier, isReaction, expanded, resultDialogRollId, resultDialogAnimate.
+- **Roll Panel UI** (`components/roll-builder/`): desktop sticky sidebar + mobile bottom-sheet via Dialog. `TagPicker` (theme + backpack + fellowship + relationship groups), `StatusPicker`, `MightSelector`, `ReactionToggle`, `PowerSummary`, `RollButton`, `RollResultDialog`.
+- **Character layout** mounts `<RollPanel />` + `<RollResultDialog />` inside the provider tree.
 
 **Built (prior pass — advancement flows):**
-- **3 new Server Actions** in `actions/`: `claimImprovement` (addTag | replaceWeakness | addImprovement), `evolveTheme` (mightLevel ladder Origin → Adventure → Greatness; Greatness stays Greatness; Promise +1 capped at 5), `replaceTheme` (swap entire theme via `buildBlankTheme`; Promise +1).
-- **Server enforces track completion** — each action throws `INVALID_STATE` unless the corresponding track equals exactly 3. Stale UI cannot double-claim.
-- **3 new input schemas**: `ClaimImprovementInput`, `EvolveThemeInput`, `ReplaceThemeInput`. All branded IDs.
-- **3 theme schema helpers**: `nextMightLevel(level)`, `formatMightLevel(level)`, `themeTypesForMightLevel(level)` (frozen group map built once at module load).
-- **`buildBlankTheme({type, name, quest})`** extracted from inline `blankTheme()`; `buildBlankCharacter` refactored to reuse it for its 4 default themes. `replaceTheme` shares the same factory.
-- **`advancement-dialogs/` folder** in theme-card: `shared.tsx` (`DialogFormShell` + `TypeOptionPicker`), `improvement-dialog.tsx` (radio + conditional input), `evolve-dialog.tsx` (branches on `nextMightLevel`), `replace-dialog.tsx` (destructive variant).
-- **`AdvancementBadge` rewritten** as a dispatcher → renders one of the three dialogs. Old "Coming soon" toast removed; `fx-celebrate ring-ember/30` moved onto each dialog's trigger button.
-- **`<MomentOfFulfillmentBadge />`** new placeholder Dialog in `components/moment-of-fulfillment-badge.tsx`. Triggers when `progression.promise === 5 && canEdit` from inside `HeroSection`. Body explains the moment; close button only (no actions wired yet — `TODO(prompt-future)`).
-- **`HeroSection`** conditionally renders MoF badge below the Promise track.
+- `claimImprovement`, `evolveTheme`, `replaceTheme` actions. Server enforces respective track === 3.
+- `nextMightLevel`, `formatMightLevel`, `themeTypesForMightLevel` helpers.
+- `buildBlankTheme` factory shared by `buildBlankCharacter` + `replaceTheme`.
+- `advancement-dialogs/` folder with shared `DialogFormShell` + `TypeOptionPicker`.
+- `AdvancementBadge` dispatcher. `<MomentOfFulfillmentBadge />` at `progression.promise === 5 && canEdit`.
 
-**Built (prior pass — interactive tags + Status manager):**
-- **`ApplyStatusInput`** discriminator refactored: `add | setTier | rename | clear`. Action body matches.
-- **`UpdateTagInput`** refactored with `location: { kind: "theme", themeId, tagId } | { kind: "backpack", tagId }`. Action body branches; backpack story tags can rename + scratch.
-- **`shared/hooks/use-action-with-toast.ts`** — wraps `Promise<ActionResult<T>>` → maps to `toast.error` / `toast.success`. Returns `data | null`. Used everywhere a Server Action is invoked from a Client Component.
-- **`shared/ui/ConfirmDialog.tsx`** — destructive-confirm wrapper over `Dialog`. Pending state disables buttons + shows spinner inside confirm. Auto-closes on resolve; stays open on reject.
-- **`<TagPill>` rewritten** to dual-mode: read-only branch (no handlers → identical to prior) and interactive branch (any handler → button body + kebab `<DropdownMenu>` with conditional Rename / Burn / Remove items). Burn + Remove route through `ConfirmDialog`. Body click → `onToggleScratch` (gated by `state !== "burned"`). Rename swaps label inline for auto-focused input; Enter/blur commits, Escape cancels. Pending state dims pill + swaps kebab to Loader2.
-- **`<PowerTagList>` rewired** to new TagPill API — old hover-× pattern removed.
-- **`<WeaknessTagRow>` updated** to new `location: { kind: "theme", themeId, tagId }` shape.
-- **`<BackpackSection>` upgraded** — story tags get interactive scratch + rename (no burn — power-only; no add/remove — `TODO(prompt-7)`).
-- **`<StatusManager>` + `<StatusEditor>` + `<AddStatusForm>`** in `components/statuses/`. StatusEditor: EditableField name + interactive StatusTierBar + ghost-icon trash for clear (no confirm — reversible). AddStatusForm: name + polarity toggle (tinted) + 6-button tier picker + Add. Enter in name submits.
-- **`<StatusesSection>`** reduced to one-liner rendering `<StatusManager />`.
+**Built (prior pass — interactive tags + Status manager + Backpack CRUD):**
+- `UpdateTagInput` with location discriminator. `ApplyStatusInput` discriminator.
+- `useActionWithToast` hook. `<ConfirmDialog>` wrapper.
+- `<TagPill>` dual-mode (read-only + interactive). Story tag `addStoryTag` / `removeStoryTag` + editable backpack notes via `updateBackpackNotes`.
+- `<StatusManager>` + `<StatusEditor>` + `<AddStatusForm>` (player-side).
 
-**Built (prior pass — interactive ThemeCard):**
-- **`<Track>` primitive** rewritten with `onChange?: (delta: -1 | 1) => void` step semantics. Only the next-empty pip (+1) and last-filled pip (−1) are clickable; other pips are visually present but `pointer-events: none`. Read-only when `onChange` absent.
-- **`shared/hooks/use-debounced-field-save.ts`** — generic state machine: `idle → pending → saving → saved → idle` (1.5s flash) or `→ error`. Reconciles with upstream when remote diverges from last-saved.
-- **`shared/ui/EditableField.tsx`** — Client wrapper around the hook. `<input>` or `<textarea>` styled as parchment line + status indicator (dot/spinner/check/alert).
-- **4 new Server Actions**: `updateTheme` (rename/retype/setQuest — `retype` atomically updates `type` AND `mightLevel`), `addPowerTag` (max 12, UUID id, `PowerTagSchema.parse` pre-push), `removePowerTag`, `mutateSpecialImprovements` (add/remove/edit, max 12).
-- **`formatThemeType(type)`** helper in `schemas/theme.ts` — humanizes `origin:skill_trade` → `{ label: "Skill Trade", mightLabel: "Origin" }`.
-- **`theme-card/` folder** — 8 subcomponents replacing `ThemeCardPlaceholder`: TypeSelector (DropdownMenu grouped by Might), WeaknessTagRow, PowerTagList + PowerTagAdder, TrackRow (3× Track + AdvancementBadge), AdvancementBadge (toast placeholder + fx-celebrate glow), SpecialImprovementsList, root index composing all.
-- **`ThemeCard` root** — leather header w/ TypeSelector + might label; body sections: Name, Power tags, Weakness, Quest, Tracks, Special improvements. `canEdit` from `role === "owner" || "gm"`; when false all inputs/buttons disabled.
-- **`ThemeCardPlaceholder.tsx` deleted**; barrel updated.
-- **`globals.css`** — added `@keyframes fx-celebrate` + `.fx-celebrate` rule (color-mix glow). Reduced-motion override silences it.
+**Built (prior pass — interactive ThemeCard + tracks + theme editor):**
+- `<Track>` primitive w/ step-based `onChange`. `useDebouncedFieldSave` hook. `<EditableField>` wrapper.
+- `updateTheme`, `addPowerTag`, `removePowerTag`, `mutateSpecialImprovements`.
+- `theme-card/` folder w/ TypeSelector, WeaknessTagRow, PowerTagList + PowerTagAdder, TrackRow, AdvancementBadge, SpecialImprovementsList.
 
 **Built (prior pass — real reads + live listener):**
-- **`shared/auth/get-session-user.ts`** — Server Component helper; redirects to `/login` on UNAUTHENTICATED (Server Actions still use `requireAuth` to surface structured errors).
-- **`requireAuth` extended** to surface `displayName` + `photoURL` from session claims.
-- **`features/character-sheet/lib/access.ts`** — moved from `actions/_shared.ts`. Signature returns `{ role, snap }`; supports both transactional and plain reads. All 5 action call sites updated.
-- **`features/character-sheet/lib/queries.ts`** — Admin SDK reads: `getMyCharacters(uid)` (owns-only; composite index added to `firestore.indexes.json`) and `getCharacter(charId, uid)` (authorized via `requireCharacterAccess`, NOT_FOUND maps to `notFound()` at the layout).
-- **`features/character-sheet/lib/serialize.ts`** rewritten SDK-agnostic via `SnapshotLike` duck-type. Used by both Admin (server) and Client (`onSnapshot`) paths.
-- **`features/character-sheet/hooks/use-character-snapshot.ts`** — Client SDK `onSnapshot` listener. Always preserves last-known-good character on transient errors; surfaces error to UI for `<ConnectionBanner />`.
-- **`CharacterProvider`** + **`useCharacter()`** hook — single listener mount point; sections consume via context (never directly).
-- **`CharacterHeader`** + **`ConnectionBanner`** — Client Components reading from context.
-- **All 5 section components converted to Client Components**, reading from `useCharacter()` and rendering real character fields (themes via `TagPill` + `Track`; story tags; statuses via `StatusTierBar`; companions table; etc.). Empty fields show `—` or italic placeholder; empty multi-line lists fall back to `<Skeleton>`.
-- **Dashboard wired to real reads**: `getSessionUser` + `getMyCharacters`. Added `dashboard/loading.tsx` (8-card skeleton grid) + `dashboard/error.tsx` (Client, reset button).
-- **Character layout wired**: `getSessionUser` + `getCharacter` (NOT_FOUND → `notFound()`, others → error boundary). Added `loading.tsx`, `error.tsx` (Client, detects "forbidden"), `not-found.tsx`.
-- **`firestore.indexes.json`** — added composite index `characters: userId asc + updatedAt desc`.
-- **Stubs deleted**: `lib/stubs.ts` gone; barrel cleaned; `grep -r "Stub" src/` returns empty across the feature.
+- `getSessionUser`, `requireCharacterAccess`, `getMyCharacters`, `getCharacter`. `firestoreToCharacter` SDK-agnostic. `useCharacterSnapshot`. `CharacterProvider` + `useCharacter()`. `ConnectionBanner`. 5 section components as Client Components consuming context.
+- Dashboard + character layout wired to real reads. `firestore.indexes.json` composite index added.
 
 **Built (prior pass — data model + actions):**
-- **Authoritative character schemas** (`features/character-sheet/schemas/`) — branded IDs, full Theme/Tag/Status/Track/Identity/Progression/Backpack/Fellowship schemas with refinements.
-- **5 Server Actions**: `createCharacter`, `updateTag`, `burnTag`, `applyStatus`, `markTrack`.
-- **`buildBlankCharacter`** factory.
-- **`CreateCharacterDialog`** wired to `createCharacter`.
-- **`firestore.rules` patched** — `characters/{charId}` block uses `data.userId` and `data.campaignIds`.
+- Authoritative schemas (branded IDs + refinements). 5 baseline Server Actions. `buildBlankCharacter`. `CreateCharacterDialog`. Initial `firestore.rules`.
 
 **Not yet built:**
-- **Story tag add / remove** in the backpack (rename + scratch already work).
-- **Editable notes** in BackpackSection (currently read-only display of `backpack.notes`).
-- **Moment-of-Fulfillment options** (badge appears at Promise = 5 with explanatory copy; no action wiring yet — `TODO(prompt-future)`).
-- **Roll history view** — rolls are persisted, but there's no list/timeline UI yet.
-- Active scene view (declared threats, scene tags, roll panel for GM).
-- GM Dashboard.
-- Camp mode.
+- Active scene view (declared threats, scene tags, GM-pushed roll panel during play).
+- GM Dashboard (multi-character / multi-challenge overview).
+- **Moment-of-Fulfillment options** (badge shows at Promise = 5; no action wiring yet — `TODO(prompt-future)`).
+- Session log / "what happened" timeline (camp action descriptions are toast-only today).
+- Fellowship advancement ritual (improve/milestone/abandon tracks exist but don't fire any flow at 3).
 
 ## 8. Environment Variables
 
@@ -359,23 +392,31 @@ Server (admin):
 
 - **No client-side Firestore writes from players.** Server Actions only.
 - **Every Server Action wrapped in `withAction(schema, handler)`** — auto-validates input via Zod + re-verifies cookie via `requireAuth` (`checkRevoked: true`) + uniform `ActionResult<T>` return envelope.
-- **Character-touching writes** must go through `requireCharacterAccess(charId, uid, tx?)` inside the transaction. Authorizes owner (`data.userId === uid`) OR GM (`users/{uid}.gmCampaignIds` ∩ `data.campaignIds` non-empty).
-- **Firestore Timestamps never leak past the action boundary.** Use `firestoreToCharacter(snap)` to serialize on every read.
-- **Branded ID types** (`CharacterId`, `ThemeId`, `TagId`, `StatusId`, `CampaignId`, `FellowshipRelationshipId`) used everywhere — no raw `z.string()` for IDs.
-- **Re-verify cookie inside every Server Action** with `requireUser()` or via `withAction` (which calls `requireAuth` internally).
+- **Character-touching writes** go through `requireCharacterAccess(charId, uid, tx?)` inside the transaction. Owner or GM authorized.
+- **Campaign-touching writes** go through `requireCampaignGm(campaignId, uid, tx?)` (mutations) or `requireCampaignMembership` (reads where members and GM see the same data).
+- **Challenges are GM-only**: enforced at action layer (`requireCampaignGm`) AND Firestore rules. Players never read or write the subcollection.
+- **`deliverThreat` is atomic.** Single transaction reads challenge + target character, branches on consequence kind, writes back. Intentionally duplicates apply logic from `applyStatus`/`markTrack`/`updateTag` — do NOT call those actions from within `deliverThreat`. Keep the branches in sync if upstream changes write shape.
+- **Camp (`endCampActivity`) is atomic per-character.** Does NOT touch the fellowship doc; fellowship refresh is GM-driven via `mutateFellowship({ kind: "refreshTags" })`.
+- **Burned tags survive camp.** Camp unscratches non-burned scratched tags. Burning is more permanent than scratching.
+- **Story tag preservation** (`preserved` flag) is backpack-only. `updateTag({ patch: { kind: "setPreserved" } })` rejects on theme/fellowship locations with `INVALID_STATE`.
+- **Firestore Timestamps never leak past the action boundary.** Use the `firestoreTo*` helpers (`Character`, `Campaign`, `Invitation`, `RollRecord`, `Challenge`) on every read. `toIso` exported from `serialize.ts`.
+- **Branded ID types** everywhere — no raw `z.string()` for IDs. New brands: `ChallengeId`, `ThreatId`, `LimitId`.
 - **No optimistic UI** on GM-pushed state changes.
-- **No raw Tailwind palette** (`bg-yellow-500`, etc.) — design tokens only. Especially canonical tag colors flow through `tag-power-*` / `tag-weakness-*` exclusively.
+- **No raw Tailwind palette** (`bg-yellow-500`, etc.) — design tokens only.
 - **Every colored class needs a `dark:` variant.**
 - **`zustand` is for UI-only state.** Firestore data lives in `onSnapshot` listeners, never duplicated into stores.
 - **No proprietary terms** in user-facing strings, metadata, or file names.
-- **Shadcn/Radix primitives** live in `shared/ui/`. Project-specific composites live in `features/<feature>/components/`. Never re-implement what Radix covers.
-- **Server Actions passed as props** when a Client Component (e.g., `UserMenu` in `shared/`) needs to invoke an action from a feature (`shared/` cannot import `features/`).
-- **All Server Action calls from Client Components go through `useActionWithToast`** for uniform error feedback. Bare `await action(...); if (!result.ok) toast...` patterns forbidden in new code.
-- **Destructive operations (burn, remove)** always go through `<ConfirmDialog>`. Low-impact reversible operations (clear status, scratch) are one-click.
-- **Dice are server-side only.** Never `Math.random()` for any game-affecting outcome. `secureRollD6()` lives in `shared/lib/dice.ts` with `"server-only"`. Clients display values returned by `commitRoll`.
-- **`computePower` and `resolveInvocations` are colocated and shared between client (live preview) and server (`commitRoll`).** Any formula change must be made in one place to prevent drift.
-- **One `onSnapshot` per character.** The listener lives only in `<CharacterProvider>`; sections never call `useCharacterSnapshot` directly — consume via `useCharacter()`.
-- **Server Components use Admin SDK; Client Components use Client SDK.** Crossing wires is forbidden (security + SSR bug).
-- **`getSessionUser`** for Server Components (redirects); **`requireAuth`** for Server Actions (throws typed error via `withAction`).
-- **Scrollbars**: OverlayScrollbars only — never use native scrollbars or Radix `ScrollArea`. Global body scrollbar mounted by `<BodyScrollbar />` in `<Providers>`. Inner scrollers use `<ScrollArea>` from `@/shared/ui`. Theme class `os-theme-codex` lives in `globals.css` (light + dark variants).
-- **`argsIgnorePattern: "^_"` honored** — unused params prefixed with `_` are intentional stubs (Firestore swap-in points).
+- **Shadcn/Radix primitives** live in `shared/ui/`. Project-specific composites live in `features/<feature>/components/`.
+- **All Server Action calls from Client Components go through `useActionWithToast`** for uniform error feedback.
+- **Destructive operations** always go through `<ConfirmDialog>`. Reversible single-click for non-destructive (clear status, scratch).
+- **Dice are server-side only.** Never `Math.random()` for any game-affecting outcome.
+- **`computePower` and `resolveInvocations`** colocated and shared between client (live preview) and server (`commitRoll`). Any formula change must be in one place.
+- **One `onSnapshot` per character.** Listener lives in `<CharacterProvider>`; sections consume via `useCharacter()`.
+- **One `onSnapshot` per challenge.** Listener lives in `<ChallengeProvider>`; mounted only on the detail route. Do not mount in the campaign page list — that uses `useChallenges` instead.
+- **Roll history single reader.** Components must use `useRollHistory`; no ad-hoc `getDocs` against the rolls subcollection.
+- **Server Components use Admin SDK; Client Components use Client SDK.** Crossing wires is forbidden.
+- **`getSessionUser`** for Server Components (redirects); **`requireAuth`** for Server Actions (typed errors via `withAction`).
+- **`<ChallengesPanel>` mounts GM-only** in `<CampaignPageShell>`. Players don't see it. Player roll picker has no "Challenges" group — players never invoke challenge tags from their rolls in v1.
+- **Toast API**: `toast.success`, `toast.warning`, `toast.error`, `toast.show({ title, description })`. No `toast.info`.
+- **Scrollbars**: OverlayScrollbars only — never native scrollbars or Radix `ScrollArea`. Global mounted by `<BodyScrollbar />`. Inner scrollers use `<ScrollArea>` from `@/shared/ui`.
+- **`argsIgnorePattern: "^_"`** honored — unused params prefixed with `_` are intentional stubs.

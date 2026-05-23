@@ -43,6 +43,13 @@ service cloud.firestore {
             && resource.data.playerUids.hasAny([request.auth.uid]))
       );
       allow write: if false;
+
+      // challenges subcollection — GM-only read; writes go through Admin SDK.
+      match /challenges/{challengeId} {
+        allow read: if isSignedIn()
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.gmUid == request.auth.uid;
+        allow write: if false;
+      }
     }
 
     // ------------------------------------------------------------------

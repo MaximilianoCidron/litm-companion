@@ -22,6 +22,7 @@ export interface RollBuilderState {
   isReaction: boolean;
   expanded: boolean;
   resultDialogRollId: string | null;
+  resultDialogAnimate: boolean;
 
   toggleTag(key: TagInvocationKey, payload: Omit<InvokedTagEntry, "burn">): void;
   toggleBurn(key: TagInvocationKey): void;
@@ -29,7 +30,7 @@ export interface RollBuilderState {
   setMight(m: MightModifier): void;
   setReaction(b: boolean): void;
   setExpanded(b: boolean): void;
-  openResultDialog(rollId: string): void;
+  openResultDialog(rollId: string, animate?: boolean): void;
   closeResultDialog(): void;
   reset(): void;
   resetSelectionOnly(): void;
@@ -54,6 +55,7 @@ export const useRollBuilder = create<RollBuilderState>()(
     isReaction: false,
     expanded: false,
     resultDialogRollId: null,
+    resultDialogAnimate: true,
 
     toggleTag: (key, payload) =>
       set((s) => {
@@ -85,13 +87,15 @@ export const useRollBuilder = create<RollBuilderState>()(
       set((s) => {
         s.expanded = b;
       }),
-    openResultDialog: (rollId) =>
+    openResultDialog: (rollId, animate = true) =>
       set((s) => {
         s.resultDialogRollId = rollId;
+        s.resultDialogAnimate = animate;
       }),
     closeResultDialog: () =>
       set((s) => {
         s.resultDialogRollId = null;
+        s.resultDialogAnimate = true;
       }),
     reset: () =>
       set((s) => {
@@ -101,6 +105,7 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.isReaction = false;
         s.expanded = false;
         s.resultDialogRollId = null;
+        s.resultDialogAnimate = true;
       }),
     resetSelectionOnly: () =>
       set((s) => {
@@ -123,3 +128,5 @@ export const useRollBuilderExpanded = (): boolean =>
   useRollBuilder((s) => s.expanded);
 export const useResultDialogRollId = (): string | null =>
   useRollBuilder((s) => s.resultDialogRollId);
+export const useResultDialogAnimate = (): boolean =>
+  useRollBuilder((s) => s.resultDialogAnimate);

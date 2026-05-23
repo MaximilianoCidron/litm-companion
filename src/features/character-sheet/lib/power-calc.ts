@@ -168,8 +168,12 @@ export function resolveInvocations(
         (t) => t.id === inv.tagId,
       );
       if (fellowshipPower) {
-        // TODO(camp-rest-flow): scratch fellowship power tags on invocation;
-        // refresh at rest. v1 ignores per-tag exhaustion for shared resources.
+        if (fellowshipPower.scratched) {
+          return {
+            ok: false,
+            reason: `Fellowship power tag "${fellowshipPower.name}" is exhausted — refresh the fellowship to use it again.`,
+          };
+        }
         tags.push({
           tagId: inv.tagId,
           location: loc,

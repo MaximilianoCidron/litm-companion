@@ -71,6 +71,20 @@ export function BackpackSection() {
                         );
                       }
                     : undefined;
+                  const onTogglePreserve = canEdit
+                    ? async () => {
+                        await callAction(
+                          updateTag({
+                            characterId,
+                            location: { kind: "backpack", tagId: tagIdBranded },
+                            patch: {
+                              kind: "setPreserved",
+                              preserved: !tag.preserved,
+                            },
+                          }),
+                        );
+                      }
+                    : undefined;
                   return (
                     <li key={tag.id}>
                       <TagPill
@@ -81,9 +95,11 @@ export function BackpackSection() {
                         }
                         label={tag.name}
                         state={tag.scratched ? "scratched" : "active"}
+                        isPreserved={tag.preserved}
                         onToggleScratch={onToggleScratch}
                         onRename={onRename}
                         onRemove={onRemove}
+                        onTogglePreserve={onTogglePreserve}
                       />
                     </li>
                   );

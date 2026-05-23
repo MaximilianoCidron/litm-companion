@@ -3,6 +3,7 @@ import { Card, Skeleton, Track } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
 import { CampaignBadge } from "../campaign/campaign-badge";
 import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment-badge";
+import { MakeCampButton } from "../camp/make-camp-button";
 
 export function HeroSection() {
   const { character, role } = useCharacter();
@@ -89,6 +90,11 @@ export function HeroSection() {
             {showMomentOfFulfillment ? (
               <div className="mt-2">
                 <MomentOfFulfillmentBadge />
+              </div>
+            ) : null}
+            {canEdit ? (
+              <div className="mt-2 self-start">
+                <MakeCampButton />
               </div>
             ) : null}
           </div>

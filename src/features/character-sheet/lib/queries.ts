@@ -5,17 +5,26 @@ import { ActionError } from "@/shared/auth";
 import {
   CampaignId,
   CampaignSummarySchema,
+  ChallengeId,
+  ChallengeSummarySchema,
   CharacterSummarySchema,
   InvitationId,
   type Campaign,
   type CampaignSummary,
+  type Challenge,
+  type ChallengeSummary,
   type Character,
   type CharacterSummary,
   type Invitation,
 } from "../schemas";
-import { requireCampaignMembership, requireCharacterAccess } from "./access";
+import {
+  requireCampaignGm,
+  requireCampaignMembership,
+  requireCharacterAccess,
+} from "./access";
 import {
   firestoreToCampaign,
+  firestoreToChallenge,
   firestoreToCharacter,
   firestoreToInvitation,
 } from "./serialize";
@@ -198,6 +207,62 @@ export async function getInvitation(
  * when the user has no access or the campaign is missing — the character
  * sheet still loads.
  */
+/**
+ * List GM-owned challenges for a campaign — summaries only. Authorization
+ * via `requireCampaignGm`; only the GM ever calls this. Limit 50.
+ */
+export async function listChallenges(
+  rawCampaignId: string,
+  uid: string,
+): Promise<ChallengeSummary[]> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignGm(campaignId, uid);
+  const db = getAdminDb();
+  const snap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("challenges")
+    .orderBy("updatedAt", "desc")
+    .limit(50)
+    .get();
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return ChallengeSummarySchema.parse({
+      id: d.id,
+      name: data.name,
+      role: data.role,
+      mightLevel: data.mightLevel,
+      threatCount: Array.isArray(data.threats) ? data.threats.length : 0,
+      limitCount: Array.isArray(data.limits) ? data.limits.length : 0,
+    });
+  });
+}
+
+/**
+ * Authorized read of a single challenge — GM-only. Throws ActionError NOT_FOUND
+ * when missing; the route layout maps it to notFound().
+ */
+export async function getChallenge(
+  rawCampaignId: string,
+  rawChallengeId: string,
+  uid: string,
+): Promise<Challenge> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  const challengeId = ChallengeId.parse(rawChallengeId);
+  await requireCampaignGm(campaignId, uid);
+  const db = getAdminDb();
+  const ref = db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("challenges")
+    .doc(challengeId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new ActionError("NOT_FOUND", "Challenge not found.");
+  }
+  return firestoreToChallenge(snap);
+}
+
 export async function getCharacterWithCampaign(
   rawCharId: string,
   uid: string,

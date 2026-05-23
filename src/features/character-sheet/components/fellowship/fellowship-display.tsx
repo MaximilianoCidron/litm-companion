@@ -1,7 +1,15 @@
 // TODO(refactor): promote campaign subdomain to its own feature.
 "use client";
 import { useCallback } from "react";
-import { Card, EditableField, TagPill, Track } from "@/shared/ui";
+import { RefreshCw } from "lucide-react";
+import {
+  Button,
+  Card,
+  ConfirmDialog,
+  EditableField,
+  TagPill,
+  Track,
+} from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import {
   mutateFellowship,
@@ -126,9 +134,21 @@ export function FellowshipDisplay({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
-            Power tags
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
+              Power tags
+            </span>
+            {canEdit ? (
+              <RefreshTagsAffordance
+                hasScratched={fellowship.powerTags.some((t) => t.scratched)}
+                onRefresh={() =>
+                  callAction(dispatch({ kind: "refreshTags" }), {
+                    onSuccess: "Fellowship tags refreshed",
+                  })
+                }
+              />
+            ) : null}
+          </div>
           {fellowship.powerTags.length > 0 ? (
             <ul className="flex flex-wrap gap-2">
               {fellowship.powerTags.map((tag) => {
@@ -274,5 +294,39 @@ export function FellowshipDisplay({
         </div>
       </Card.Body>
     </Card>
+  );
+}
+
+interface RefreshTagsAffordanceProps {
+  hasScratched: boolean;
+  onRefresh: () => Promise<unknown>;
+}
+
+function RefreshTagsAffordance({
+  hasScratched,
+  onRefresh,
+}: RefreshTagsAffordanceProps) {
+  if (!hasScratched) {
+    return (
+      <span className="text-xs italic text-ink-subtle dark:text-parchment-subtle">
+        All tags ready
+      </span>
+    );
+  }
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button type="button" variant="secondary" size="sm">
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+          Refresh fellowship tags
+        </Button>
+      }
+      title="Refresh fellowship tags?"
+      description="All scratched fellowship power tags become available again. Do this when the party rests together."
+      confirmLabel="Refresh"
+      onConfirm={async () => {
+        await onRefresh();
+      }}
+    />
   );
 }

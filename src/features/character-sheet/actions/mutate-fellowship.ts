@@ -121,6 +121,13 @@ export const mutateFellowship = withAction(
           );
           break;
         }
+        case "refreshTags": {
+          fellowship.powerTags = fellowship.powerTags.map((t) => ({
+            ...t,
+            scratched: false,
+          }));
+          break;
+        }
       }
 
       tx.update(snap.ref, {

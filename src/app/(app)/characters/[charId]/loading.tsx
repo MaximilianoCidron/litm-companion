@@ -10,15 +10,15 @@ export default function CharacterLoading() {
       <div className="flex flex-1 flex-col md:flex-row">
         <nav
           aria-label="Loading sections"
-          className="hidden w-32 shrink-0 flex-col bg-ink-muted md:flex md:w-40"
+          className="hidden shrink-0 flex-col bg-ink-muted md:flex md:w-14"
         >
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="flex h-20 flex-col items-center justify-center gap-1 border-b border-ink-base/20"
+              className="flex flex-1 min-h-32 flex-col items-center justify-center gap-2 border-b border-ink-base/20 px-1 py-3"
             >
-              <Skeleton className="h-6 w-6 rounded-full bg-parchment-elevated/20" />
-              <Skeleton className="h-3 w-12 bg-parchment-elevated/20" />
+              <Skeleton className="h-5 w-5 rounded-full bg-parchment-elevated/20" />
+              <Skeleton className="h-16 w-2.5 bg-parchment-elevated/20" />
             </div>
           ))}
         </nav>

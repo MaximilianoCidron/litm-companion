@@ -5,7 +5,6 @@ import {
   BookTabBarMobile,
   BookTabNav,
   CampaignProvider,
-  CharacterHeader,
   CharacterProvider,
   ConnectionBanner,
 } from "@/features/character-sheet";
@@ -41,7 +40,6 @@ export default async function CharacterLayout({
     <CharacterProvider initial={initial} role={role}>
       <CampaignProvider initial={campaign} currentUid={user.uid}>
         <div className="flex min-h-full flex-col">
-          <CharacterHeader />
           <ConnectionBanner />
           <BookTabBarMobile charId={charId} />
           <div className="flex flex-1 flex-col md:flex-row">

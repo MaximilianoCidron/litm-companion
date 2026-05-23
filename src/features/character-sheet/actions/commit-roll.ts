@@ -1,5 +1,6 @@
 "use server";
 import { FieldValue } from "firebase-admin/firestore";
+import type { DocumentReference } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { secureRollD6 } from "@/shared/lib/dice";
@@ -35,6 +36,7 @@ export const commitRoll = withAction(
 
       // Load campaign only when fellowship invocations are present.
       let campaign: Campaign | null = null;
+      let campRef: DocumentReference | null = null;
       const fellowshipInv = input.invocations.tags.find(
         (t) => t.location.kind === "fellowship",
       );
@@ -46,7 +48,7 @@ export const commitRoll = withAction(
             "Character is not in that fellowship.",
           );
         }
-        const campRef = db.collection("campaigns").doc(campaignId);
+        campRef = db.collection("campaigns").doc(campaignId);
         const campSnap = await tx.get(campRef);
         if (!campSnap.exists) {
           throw new ActionError("NOT_FOUND", "Campaign not found.");
@@ -161,6 +163,31 @@ export const commitRoll = withAction(
         "backpack.storyTags": updatedStoryTags,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // Fellowship: scratch each invoked fellowship power tag in the same
+      // transaction. Refresh is GM-driven via mutateFellowship({ kind:
+      // "refreshTags" }) at party rest. Burning is not a concept on fellowship
+      // tags, so we only flip `scratched`.
+      if (campRef && campaign) {
+        const fellowshipIds = new Set(
+          input.invocations.tags
+            .filter((t) => t.location.kind === "fellowship")
+            .map((t) => t.tagId),
+        );
+        if (fellowshipIds.size > 0) {
+          const updatedFellowshipTags = campaign.fellowship.powerTags.map(
+            (tag) =>
+              fellowshipIds.has(tag.id) ? { ...tag, scratched: true } : tag,
+          );
+          tx.update(campRef, {
+            fellowship: {
+              ...campaign.fellowship,
+              powerTags: updatedFellowshipTags,
+            },
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
 
       return {
         rollId,

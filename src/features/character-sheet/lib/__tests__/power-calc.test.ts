@@ -52,6 +52,7 @@ function storyTag(
     polarity,
     isSingleUse,
     scratched,
+    preserved: false,
   };
 }
 
@@ -510,6 +511,46 @@ describe("computePower", () => {
       statuses: [],
     });
     assert.equal(res.ok, false);
+  });
+
+  it("20a. resolveInvocations rejects scratched fellowship power tag", () => {
+    const camp = buildCampaign("camp-scratched", [
+      powerTag("fp1", "Exhausted", { scratched: true }),
+    ]);
+    const c = character([], [], [], [], [camp.id]);
+    const res = resolveInvocations(c, camp, {
+      tags: [
+        {
+          tagId: "fp1" as PowerTag["id"],
+          location: { kind: "fellowship", campaignId: camp.id },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.match(res.reason, /exhausted/i);
+      assert.match(res.reason, /Exhausted/);
+    }
+  });
+
+  it("20b. fresh fellowship power tag (scratched=false) is accepted", () => {
+    const camp = buildCampaign("camp-fresh", [
+      powerTag("fp1", "Ready", { scratched: false }),
+    ]);
+    const c = character([], [], [], [], [camp.id]);
+    const res = resolveInvocations(c, camp, {
+      tags: [
+        {
+          tagId: "fp1" as PowerTag["id"],
+          location: { kind: "fellowship", campaignId: camp.id },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, true);
   });
 
   it("20. combined: theme power + fellowship power + helpful relationship + Favored", () => {

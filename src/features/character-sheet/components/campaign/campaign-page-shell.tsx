@@ -2,6 +2,7 @@
 "use client";
 import { useCampaign } from "../CampaignProvider";
 import { FellowshipDisplay } from "../fellowship/fellowship-display";
+import { ChallengesPanel } from "./challenges";
 import { InvitationsPanel } from "./invitations-panel";
 import { RosterView } from "./roster-view";
 import { SettingsPanel } from "./settings-panel";
@@ -62,6 +63,11 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
           role={role}
           currentUid={currentUid}
         />
+        {isGm ? (
+          <div className="lg:col-span-2">
+            <ChallengesPanel />
+          </div>
+        ) : null}
       </div>
     </div>
   );

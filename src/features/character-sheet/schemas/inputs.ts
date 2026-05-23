@@ -1,15 +1,22 @@
 import { z } from "zod";
 import {
   CampaignId,
+  ChallengeId,
   CharacterId,
   FellowshipRelationshipId,
   InvitationId,
+  LimitId,
   StatusId,
   TagId,
   ThemeId,
+  ThreatId,
 } from "./ids";
-import { ThemeTypeSchema } from "./theme";
+import { MightLevelSchema, ThemeTypeSchema } from "./theme";
 import { MightModifierSchema, TagLocationSchema } from "./roll";
+import {
+  ChallengeRoleSchema,
+  ConsequenceTemplateSchema,
+} from "./challenge";
 
 export const CreateCharacterInput = z.object({
   name: z.string().min(1).max(60),
@@ -41,6 +48,10 @@ export const UpdateTagInput = z.object({
     z.object({
       kind: z.literal("scratch"),
       scratched: z.boolean(),
+    }),
+    z.object({
+      kind: z.literal("setPreserved"),
+      preserved: z.boolean(),
     }),
   ]),
 });
@@ -307,9 +318,135 @@ export const MutateFellowshipInput = z.object({
       index: z.number().int().nonnegative(),
       text: z.string().min(1).max(120),
     }),
+    z.object({ kind: z.literal("refreshTags") }),
   ]),
 });
 export type MutateFellowshipInput = z.infer<typeof MutateFellowshipInput>;
+
+export const CreateChallengeInput = z.object({
+  campaignId: CampaignId,
+  name: z.string().min(1).max(80),
+  role: ChallengeRoleSchema,
+  mightLevel: MightLevelSchema,
+});
+export type CreateChallengeInput = z.infer<typeof CreateChallengeInput>;
+
+export const DeleteChallengeInput = z.object({
+  challengeId: ChallengeId,
+  campaignId: CampaignId,
+});
+export type DeleteChallengeInput = z.infer<typeof DeleteChallengeInput>;
+
+export const MutateChallengeInput = z.object({
+  challengeId: ChallengeId,
+  campaignId: CampaignId,
+  op: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("setName"), name: z.string().min(1).max(80) }),
+    z.object({ kind: z.literal("setConcept"), concept: z.string().max(280) }),
+    z.object({ kind: z.literal("setRole"), role: ChallengeRoleSchema }),
+    z.object({ kind: z.literal("setMightLevel"), mightLevel: MightLevelSchema }),
+    z.object({ kind: z.literal("setNotes"), notes: z.string().max(2000) }),
+
+    z.object({
+      kind: z.literal("addTag"),
+      name: z.string().min(1).max(60),
+      polarity: z.enum(["helpful", "hindering"]),
+    }),
+    z.object({ kind: z.literal("removeTag"), tagId: TagId }),
+    z.object({
+      kind: z.literal("renameTag"),
+      tagId: TagId,
+      name: z.string().min(1).max(60),
+    }),
+    z.object({ kind: z.literal("toggleTagScratch"), tagId: TagId }),
+
+    z.object({
+      kind: z.literal("addStatus"),
+      name: z.string().min(1).max(40),
+      tier: z.number().int().min(1).max(6),
+      polarity: z.enum(["helpful", "hindering"]),
+    }),
+    z.object({ kind: z.literal("removeStatus"), statusId: StatusId }),
+    z.object({
+      kind: z.literal("setStatusTier"),
+      statusId: StatusId,
+      tier: z.number().int().min(1).max(6),
+    }),
+    z.object({
+      kind: z.literal("renameStatus"),
+      statusId: StatusId,
+      name: z.string().min(1).max(40),
+    }),
+
+    z.object({
+      kind: z.literal("addLimit"),
+      label: z.string().min(1).max(60),
+      threshold: z.number().int().min(1).max(50),
+    }),
+    z.object({ kind: z.literal("removeLimit"), limitId: LimitId }),
+    z.object({
+      kind: z.literal("renameLimit"),
+      limitId: LimitId,
+      label: z.string().min(1).max(60),
+    }),
+    z.object({
+      kind: z.literal("updateLimitThreshold"),
+      limitId: LimitId,
+      threshold: z.number().int().min(1).max(50),
+    }),
+    z.object({
+      kind: z.literal("updateLimitCurrent"),
+      limitId: LimitId,
+      delta: z.union([z.literal(-1), z.literal(1)]),
+    }),
+
+    z.object({
+      kind: z.literal("addThreat"),
+      description: z.string().min(1).max(280),
+      consequenceTemplate: ConsequenceTemplateSchema,
+    }),
+    z.object({ kind: z.literal("removeThreat"), threatId: ThreatId }),
+    z.object({
+      kind: z.literal("updateThreat"),
+      threatId: ThreatId,
+      description: z.string().min(1).max(280),
+      consequenceTemplate: ConsequenceTemplateSchema,
+    }),
+  ]),
+});
+export type MutateChallengeInput = z.infer<typeof MutateChallengeInput>;
+
+export const DeliverThreatInput = z.object({
+  challengeId: ChallengeId,
+  campaignId: CampaignId,
+  threatId: ThreatId,
+  targetCharacterId: CharacterId,
+  scratchTarget: z
+    .object({
+      location: TagLocationSchema,
+      tagId: TagId,
+    })
+    .optional(),
+  markTrackTarget: z
+    .object({
+      themeId: ThemeId,
+    })
+    .optional(),
+});
+export type DeliverThreatInput = z.infer<typeof DeliverThreatInput>;
+
+export const EndCampActivityInput = z.object({
+  characterId: CharacterId,
+  activity: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("rest") }),
+    z.object({ kind: z.literal("reflect"), themeId: ThemeId }),
+    z.object({
+      kind: z.literal("campAction"),
+      description: z.string().max(280).default(""),
+    }),
+  ]),
+});
+export type EndCampActivityInput = z.infer<typeof EndCampActivityInput>;
 
 export const MutateRelationshipsInput = z.object({
   characterId: CharacterId,

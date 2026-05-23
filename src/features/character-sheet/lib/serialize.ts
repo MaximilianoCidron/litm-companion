@@ -1,15 +1,19 @@
 import {
   CampaignSchema,
+  ChallengeSchema,
   CharacterSchema,
   InvitationSchema,
+  RollRecordSchema,
   type Campaign,
+  type Challenge,
   type Character,
   type Invitation,
+  type RollRecord,
 } from "../schemas";
 
 type TimestampLike = { toDate(): Date };
 
-function toIso(value: unknown): string {
+export function toIso(value: unknown): string {
   if (
     value &&
     typeof value === "object" &&
@@ -121,5 +125,42 @@ export function firestoreToInvitation(snap: SnapshotLike): Invitation {
     createdAt: toIso(data.createdAt),
     expiresAt: toIso(data.expiresAt),
     consumedAt: toIsoNullable(data.consumedAt),
+  });
+}
+
+/**
+ * Convert a Firestore roll snapshot to the validated wire-shape `RollRecord`.
+ * Mirrors `firestoreToCharacter` — duck-typed via `SnapshotLike` so it works
+ * with both Admin and Client SDK snapshots. Throws if the doc has drifted
+ * from `RollRecordSchema`; callers in history surfaces should swallow the
+ * error and skip the row so one bad record cannot break the whole list.
+ */
+export function firestoreToRollRecord(snap: SnapshotLike): RollRecord {
+  const data = snap.data();
+  if (!data) {
+    throw new Error(`Roll ${snap.id} not found.`);
+  }
+  return RollRecordSchema.parse({
+    ...data,
+    id: snap.id,
+    createdAt: toIso(data.createdAt),
+  });
+}
+
+/**
+ * Convert a Firestore challenge snapshot (subcollection
+ * `campaigns/{cid}/challenges/{id}`) to the validated wire-shape `Challenge`.
+ * Mirrors the other firestoreTo* helpers.
+ */
+export function firestoreToChallenge(snap: SnapshotLike): Challenge {
+  const data = snap.data();
+  if (!data) {
+    throw new Error(`Challenge ${snap.id} not found.`);
+  }
+  return ChallengeSchema.parse({
+    ...data,
+    id: snap.id,
+    createdAt: toIso(data.createdAt),
+    updatedAt: toIso(data.updatedAt),
   });
 }

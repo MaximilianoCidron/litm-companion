@@ -13,6 +13,7 @@ interface UpdateTagResult {
   tagId: string;
   newName?: string;
   scratched?: boolean;
+  preserved?: boolean;
 }
 
 type PowerTagDoc = {
@@ -28,6 +29,7 @@ type StoryTagDoc = {
   polarity: "helpful" | "hindering";
   isSingleUse: boolean;
   scratched: boolean;
+  preserved?: boolean;
 };
 
 export const updateTag = withAction(
@@ -64,11 +66,18 @@ async function applyToFellowship(
     throw new Error("applyToFellowship: wrong location kind");
   }
   if (input.patch.kind === "scratch") {
-    // v1: fellowship tags don't track scratched/burned state — the camp/rest
-    // flow is deferred. Reject so callers know they shouldn't try.
+    // Fellowship scratched-state is owned by `commit-roll` (sets scratched
+    // on invocation) + `mutateFellowship({ kind: "refreshTags" })` (GM clears
+    // it on party rest). Direct toggling via updateTag is not allowed.
     throw new ActionError(
       "INVALID_STATE",
-      "Fellowship tags don't support scratching yet.",
+      "Fellowship tags can only be scratched via rolls and refreshed by the GM.",
+    );
+  }
+  if (input.patch.kind === "setPreserved") {
+    throw new ActionError(
+      "INVALID_STATE",
+      "Only story tags can be preserved.",
     );
   }
 
@@ -142,6 +151,13 @@ function applyToTheme(
     throw new ActionError("NOT_FOUND", "Tag not found on theme.");
   }
 
+  if (input.patch.kind === "setPreserved") {
+    throw new ActionError(
+      "INVALID_STATE",
+      "Only story tags can be preserved.",
+    );
+  }
+
   let result: UpdateTagResult;
 
   if (input.patch.kind === "rename") {
@@ -207,9 +223,12 @@ function applyToBackpack(
   if (input.patch.kind === "rename") {
     tag.name = input.patch.name;
     result = { tagId, newName: input.patch.name };
-  } else {
+  } else if (input.patch.kind === "scratch") {
     tag.scratched = input.patch.scratched;
     result = { tagId, scratched: input.patch.scratched };
+  } else {
+    tag.preserved = input.patch.preserved;
+    result = { tagId, preserved: input.patch.preserved };
   }
   storyTags[idx] = tag;
 

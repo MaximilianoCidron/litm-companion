@@ -13,7 +13,7 @@ export function ConnectionBanner() {
       className="flex items-center gap-2 bg-rust-soft px-4 py-2 text-sm text-rust-text dark:bg-rust-soft-dark dark:text-rust-text-dark"
     >
       <CloudOff className="h-4 w-4" aria-hidden="true" />
-      <span>Connection lost. Retrying…</span>
+      <span>Connection lost. Retrying… {error.message}</span>
       <Skeleton className="ml-2 h-3 w-12 bg-rust/30 dark:bg-rust-dark/30" />
     </div>
   );

@@ -16,6 +16,7 @@ import { getFirebaseDb } from "@/shared/firebase/client";
 import { cn } from "@/shared/lib/cn";
 import { useCharacter } from "../CharacterProvider";
 import {
+  useResultDialogAnimate,
   useResultDialogRollId,
   useRollBuilder,
 } from "../../stores/roll-builder";
@@ -58,13 +59,21 @@ function tierTheme(tier: RollRecord["tier"]) {
   };
 }
 
-function Die({ value, reveal }: { value: number; reveal: boolean }) {
+function Die({
+  value,
+  reveal,
+  celebrate,
+}: {
+  value: number;
+  reveal: boolean;
+  celebrate: boolean;
+}) {
   return (
     <div
       className={cn(
         "inline-flex h-16 w-16 items-center justify-center rounded-lg border-2 border-mist-light bg-parchment-elevated font-display numeric text-4xl",
         "dark:border-mist-dark dark:bg-ink-elevated",
-        reveal && "fx-celebrate",
+        reveal && celebrate && "fx-celebrate",
       )}
       aria-live="polite"
     >
@@ -76,6 +85,7 @@ function Die({ value, reveal }: { value: number; reveal: boolean }) {
 export function RollResultDialog() {
   const { character } = useCharacter();
   const rollId = useResultDialogRollId();
+  const animate = useResultDialogAnimate();
   const closeResultDialog = useRollBuilder((s) => s.closeResultDialog);
   const setExpanded = useRollBuilder((s) => s.setExpanded);
   const [roll, setRoll] = useState<RollRecord | null>(null);
@@ -112,8 +122,12 @@ export function RollResultDialog() {
 
   useEffect(() => {
     if (!rollId) return;
-    // Reset + reveal stages scheduled via timers — the lint rule blocks
-    // direct setState inside an effect body, so the reset runs via setTimeout(0).
+    if (!animate) {
+      // Replay mode: skip the dice-reveal animation entirely.
+      const tReveal = setTimeout(() => setRevealStage(2), 0);
+      return () => clearTimeout(tReveal);
+    }
+    // Live roll: stagger the reveal so each die lands separately.
     const tReset = setTimeout(() => setRevealStage(0), 0);
     const t1 = setTimeout(() => setRevealStage(1), 600);
     const t2 = setTimeout(() => setRevealStage(2), 800);
@@ -122,7 +136,7 @@ export function RollResultDialog() {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [rollId]);
+  }, [rollId, animate]);
 
   const open = rollId !== null;
   const tier = roll?.tier ?? null;
@@ -150,11 +164,19 @@ export function RollResultDialog() {
           ) : (
             <>
               <div className="flex items-center justify-center gap-4">
-                <Die value={roll.d1} reveal={revealStage >= 1} />
+                <Die
+                  value={roll.d1}
+                  reveal={revealStage >= 1}
+                  celebrate={animate}
+                />
                 <span className="font-display text-2xl text-ink-muted dark:text-parchment-muted">
                   +
                 </span>
-                <Die value={roll.d2} reveal={revealStage >= 2} />
+                <Die
+                  value={roll.d2}
+                  reveal={revealStage >= 2}
+                  celebrate={animate}
+                />
               </div>
               <div className="flex flex-col items-center gap-1">
                 <div className="numeric flex items-baseline gap-2 font-display">
@@ -248,24 +270,37 @@ export function RollResultDialog() {
           )}
         </DialogBody>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              closeResultDialog();
-            }}
-          >
-            Roll again
-          </Button>
-          <Button
-            type="button"
-            onClick={() => {
-              closeResultDialog();
-              setExpanded(false);
-            }}
-          >
-            Close
-          </Button>
+          {animate ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  closeResultDialog();
+                }}
+              >
+                Roll again
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  closeResultDialog();
+                  setExpanded(false);
+                }}
+              >
+                Close
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => {
+                closeResultDialog();
+              }}
+            >
+              Close
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

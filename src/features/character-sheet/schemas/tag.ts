@@ -34,6 +34,9 @@ export const StoryTagSchema = z.object({
   polarity: TagPolaritySchema,
   isSingleUse: z.boolean(),
   scratched: z.boolean(),
+  // Camp/rest flow: when true, the tag survives `endCampActivity`. Default
+  // false keeps legacy docs (written before this flag existed) discardable.
+  preserved: z.boolean().default(false),
 });
 
 export type StoryTag = z.infer<typeof StoryTagSchema>;

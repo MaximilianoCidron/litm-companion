@@ -25,3 +25,8 @@ export { kickFromCampaign } from "./kick-from-campaign";
 export { transferGm } from "./transfer-gm";
 export { renameCampaign } from "./rename-campaign";
 export { mutateFellowship } from "./mutate-fellowship";
+export { endCampActivity } from "./end-camp-activity";
+export { createChallenge } from "./create-challenge";
+export { deleteChallenge } from "./delete-challenge";
+export { mutateChallenge } from "./mutate-challenge";
+export { deliverThreat } from "./deliver-threat";

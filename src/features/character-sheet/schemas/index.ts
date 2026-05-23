@@ -7,6 +7,9 @@ export {
   FellowshipRelationshipId,
   RollId,
   InvitationId,
+  ChallengeId,
+  ThreatId,
+  LimitId,
 } from "./ids";
 
 export {
@@ -65,6 +68,26 @@ export { CharacterSchema, CharacterSummarySchema } from "./character";
 export type { Character, CharacterSummary } from "./character";
 
 export {
+  ChallengeRoleSchema,
+  CHALLENGE_ROLE_DESCRIPTIONS,
+  ChallengeTagSchema,
+  ChallengeLimitSchema,
+  ConsequenceTemplateSchema,
+  ChallengeThreatSchema,
+  ChallengeSchema,
+  ChallengeSummarySchema,
+} from "./challenge";
+export type {
+  ChallengeRole,
+  ChallengeTag,
+  ChallengeLimit,
+  ConsequenceTemplate,
+  ChallengeThreat,
+  Challenge,
+  ChallengeSummary,
+} from "./challenge";
+
+export {
   TagLocationSchema,
   ResolvedTagInvocationSchema,
   ResolvedStatusInvocationSchema,
@@ -111,6 +134,11 @@ export {
   TransferGmInput,
   RenameCampaignInput,
   MutateFellowshipInput,
+  EndCampActivityInput,
+  CreateChallengeInput,
+  DeleteChallengeInput,
+  MutateChallengeInput,
+  DeliverThreatInput,
 } from "./inputs";
 export type {
   TagInvocationInput,

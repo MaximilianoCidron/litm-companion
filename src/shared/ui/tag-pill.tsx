@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { Loader2, MoreVertical } from "lucide-react";
+import { Loader2, Lock, MoreVertical } from "lucide-react";
 import { Flame, Leaf, Sparkles, Thorn } from "./tag-pill-icons";
 import {
   ConfirmDialog,
@@ -28,6 +28,9 @@ export interface TagPillProps {
   onBurn?: () => Promise<void>;
   onRename?: (newName: string) => Promise<void>;
   onRemove?: () => Promise<void>;
+  /** Story-tag only: toggle the camp-rest preservation flag. */
+  onTogglePreserve?: () => Promise<void>;
+  isPreserved?: boolean;
   disabled?: boolean;
   className?: string;
 }
@@ -83,12 +86,14 @@ export function TagPill(props: TagPillProps) {
     onBurn,
     onRename,
     onRemove,
+    onTogglePreserve,
+    isPreserved = false,
     disabled = false,
     className,
   } = props;
 
   const interactive = Boolean(
-    onToggleScratch || onBurn || onRename || onRemove,
+    onToggleScratch || onBurn || onRename || onRemove || onTogglePreserve,
   );
 
   if (!interactive) {
@@ -104,6 +109,8 @@ export function TagPill(props: TagPillProps) {
       onBurn={onBurn}
       onRename={onRename}
       onRemove={onRemove}
+      onTogglePreserve={onTogglePreserve}
+      isPreserved={isPreserved}
       disabled={disabled}
       className={className}
     />
@@ -114,6 +121,7 @@ function ReadOnlyPill({
   polarity,
   label,
   state = "active",
+  isPreserved = false,
   className,
 }: TagPillProps) {
   const stateClass =
@@ -126,7 +134,9 @@ function ReadOnlyPill({
   return (
     <span
       role="status"
-      aria-label={`${ariaPolarity[polarity]}: ${label}${stateSuffix(state)}`}
+      aria-label={`${ariaPolarity[polarity]}: ${label}${stateSuffix(state)}${
+        isPreserved ? ", preserved" : ""
+      }`}
       className={cn(
         "inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium leading-none",
         polarityClasses[polarity],
@@ -136,6 +146,9 @@ function ReadOnlyPill({
     >
       <PolarityIcon polarity={polarity} />
       <span>{label}</span>
+      {isPreserved ? (
+        <Lock className="h-3 w-3 text-ember" aria-hidden="true" />
+      ) : null}
       <StateGlyph state={state} />
     </span>
   );
@@ -149,6 +162,8 @@ function InteractivePill({
   onBurn,
   onRename,
   onRemove,
+  onTogglePreserve,
+  isPreserved = false,
   disabled,
   className,
 }: TagPillProps) {
@@ -162,6 +177,7 @@ function InteractivePill({
   const showBurnItem = Boolean(onBurn) && polarity === "power" && !isBurned;
   const showRenameItem = Boolean(onRename);
   const showRemoveItem = Boolean(onRemove);
+  const showPreserveItem = Boolean(onTogglePreserve);
 
   const stateClass =
     state === "scratched"
@@ -228,7 +244,9 @@ function InteractivePill({
     void runWithPending(onToggleScratch);
   };
 
-  const ariaLabel = `${ariaPolarity[polarity]}: ${label}${stateSuffix(state)}`;
+  const ariaLabel = `${ariaPolarity[polarity]}: ${label}${stateSuffix(state)}${
+    isPreserved ? ", preserved" : ""
+  }`;
 
   return (
     <span
@@ -278,6 +296,9 @@ function InteractivePill({
       ) : (
         <span aria-label={ariaLabel}>{label}</span>
       )}
+      {isPreserved ? (
+        <Lock className="h-3 w-3 text-ember" aria-hidden="true" />
+      ) : null}
       <StateGlyph state={state} />
       <PillMenu
         label={label}
@@ -286,12 +307,13 @@ function InteractivePill({
         showRename={showRenameItem}
         showBurn={showBurnItem}
         showRemove={showRemoveItem}
+        showPreserve={showPreserveItem}
+        isPreserved={isPreserved}
         onRename={startRename}
-        onBurn={
-          onBurn ? () => runWithPending(onBurn) : undefined
-        }
-        onRemove={
-          onRemove ? () => runWithPending(onRemove) : undefined
+        onBurn={onBurn ? () => runWithPending(onBurn) : undefined}
+        onRemove={onRemove ? () => runWithPending(onRemove) : undefined}
+        onTogglePreserve={
+          onTogglePreserve ? () => runWithPending(onTogglePreserve) : undefined
         }
       />
     </span>
@@ -305,9 +327,12 @@ interface PillMenuProps {
   showRename: boolean;
   showBurn: boolean;
   showRemove: boolean;
+  showPreserve: boolean;
+  isPreserved: boolean;
   onRename: () => void;
   onBurn?: () => Promise<void>;
   onRemove?: () => Promise<void>;
+  onTogglePreserve?: () => Promise<void>;
 }
 
 function PillMenu({
@@ -317,11 +342,14 @@ function PillMenu({
   showRename,
   showBurn,
   showRemove,
+  showPreserve,
+  isPreserved,
   onRename,
   onBurn,
   onRemove,
+  onTogglePreserve,
 }: PillMenuProps) {
-  const anyItem = showRename || showBurn || showRemove;
+  const anyItem = showRename || showBurn || showRemove || showPreserve;
   if (!anyItem) return null;
 
   return (
@@ -348,6 +376,11 @@ function PillMenu({
       <DropdownMenuContent align="end">
         {showRename ? (
           <DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
+        ) : null}
+        {showPreserve && onTogglePreserve ? (
+          <DropdownMenuItem onSelect={() => void onTogglePreserve()}>
+            {isPreserved ? "Discard at next camp" : "Preserve when camping"}
+          </DropdownMenuItem>
         ) : null}
         {showBurn && onBurn ? (
           <ConfirmDialog
