@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus } from "lucide-react";
-import { Button, TagPill } from "@/shared/ui";
+import { Plus, RefreshCw } from "lucide-react";
+import { Button, ConfirmDialog, TagPill } from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import { mutateChallenge } from "../../actions";
 import { useChallenge } from "../challenge-provider";
@@ -13,10 +13,36 @@ type Polarity = "helpful" | "hindering";
 export function TagsSection() {
   const { challenge } = useChallenge();
   const callAction = useActionWithToast();
+  const anyScratched = challenge.tags.some((t) => t.scratched);
 
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title="Tags" />
+      <div className="flex items-center justify-between gap-2">
+        <SectionHeader title="Tags" />
+        {anyScratched ? (
+          <ConfirmDialog
+            trigger={
+              <Button type="button" variant="ghost" size="sm">
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Refresh tags
+              </Button>
+            }
+            title="Refresh all tags?"
+            description="Unscratch every tag on this challenge."
+            confirmLabel="Refresh"
+            onConfirm={async () => {
+              await callAction(
+                mutateChallenge({
+                  challengeId: challenge.id,
+                  campaignId: challenge.campaignId,
+                  op: { kind: "refreshTags" },
+                }),
+                { onSuccess: "Tags refreshed" },
+              );
+            }}
+          />
+        ) : null}
+      </div>
       {challenge.tags.length > 0 ? (
         <ul className="flex flex-wrap gap-2">
           {challenge.tags.map((tag) => {

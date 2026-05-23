@@ -10,6 +10,8 @@ export {
   ChallengeId,
   ThreatId,
   LimitId,
+  SessionLogEntryId,
+  PendingThreatId,
 } from "./ids";
 
 export {
@@ -39,8 +41,16 @@ export type { Status } from "./status";
 export { BackpackSchema } from "./backpack";
 export type { Backpack } from "./backpack";
 
-export { ProgressionSchema } from "./progression";
-export type { Progression } from "./progression";
+export {
+  ProgressionSchema,
+  MomentOfFulfillmentPathSchema,
+  MomentOfFulfillmentEntrySchema,
+} from "./progression";
+export type {
+  Progression,
+  MomentOfFulfillmentPath,
+  MomentOfFulfillmentEntry,
+} from "./progression";
 
 export { IdentitySchema } from "./identity";
 export type { Identity } from "./identity";
@@ -64,8 +74,16 @@ export type {
 export { InvitationStatusSchema, InvitationSchema } from "./invitation";
 export type { InvitationStatus, Invitation } from "./invitation";
 
-export { CharacterSchema, CharacterSummarySchema } from "./character";
-export type { Character, CharacterSummary } from "./character";
+export {
+  CharacterSchema,
+  CharacterSummarySchema,
+  CharacterStatusSchema,
+} from "./character";
+export type {
+  Character,
+  CharacterSummary,
+  CharacterStatus,
+} from "./character";
 
 export {
   ChallengeRoleSchema,
@@ -76,6 +94,7 @@ export {
   ChallengeThreatSchema,
   ChallengeSchema,
   ChallengeSummarySchema,
+  EngagedChallengeSchema,
 } from "./challenge";
 export type {
   ChallengeRole,
@@ -85,7 +104,30 @@ export type {
   ChallengeThreat,
   Challenge,
   ChallengeSummary,
+  EngagedChallenge,
 } from "./challenge";
+
+export {
+  SessionLogDetailsSchema,
+  SessionLogEntrySchema,
+} from "./session-log";
+export type {
+  SessionLogDetails,
+  SessionLogEntry,
+} from "./session-log";
+
+export {
+  PendingConsequenceSchema,
+  PendingThreatStatusSchema,
+  PendingThreatResolutionSchema,
+  PendingThreatSchema,
+} from "./pending-threat";
+export type {
+  PendingConsequence,
+  PendingThreatStatus,
+  PendingThreatResolution,
+  PendingThreat,
+} from "./pending-threat";
 
 export {
   TagLocationSchema,
@@ -108,6 +150,8 @@ export {
   CreateCharacterInput,
   UpdateTagInput,
   BurnTagInput,
+  UnburnTagInput,
+  ResolveMomentOfFulfillmentInput,
   ApplyStatusInput,
   MarkTrackInput,
   UpdateThemeInput,
@@ -139,6 +183,12 @@ export {
   DeleteChallengeInput,
   MutateChallengeInput,
   DeliverThreatInput,
+  AddSessionLogEntryInput,
+  DeleteSessionLogEntryInput,
+  ToggleSessionLogPinInput,
+  OfferReactionForThreatInput,
+  ResolvePendingThreatInput,
+  CancelPendingThreatInput,
 } from "./inputs";
 export type {
   TagInvocationInput,

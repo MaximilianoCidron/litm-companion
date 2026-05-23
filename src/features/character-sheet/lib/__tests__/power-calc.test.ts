@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { computePower, resolveInvocations } from "../power-calc";
 import type {
   Campaign,
+  CampaignId,
   Character,
   FellowshipRelationship,
   PowerTag,
@@ -111,8 +112,13 @@ function character(
     themes: padded,
     statuses,
     backpack: { storyTags, notes: "" },
-    progression: { promise: 0, quintessences: [] },
+    progression: {
+      promise: 0,
+      quintessences: [],
+      momentsOfFulfillment: [],
+    },
     fellowship: { relationships },
+    status: "active",
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -145,7 +151,7 @@ function buildCampaign(
 describe("computePower", () => {
   it("1. empty invocations + Even Might => Power 0", () => {
     const c = character([]);
-    const result = computePower(c, null, { tags: [], statuses: [] }, 0);
+    const result = computePower(c, null, new Map(), { tags: [], statuses: [] }, 0);
     assert.equal(result.total, 0);
     assert.equal(result.items.length, 0);
   });
@@ -156,6 +162,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -177,6 +184,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -199,6 +207,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -226,6 +235,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [],
         statuses: [
@@ -250,6 +260,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [],
         statuses: [
@@ -271,6 +282,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -288,7 +300,7 @@ describe("computePower", () => {
 
   it("8. Might modifier adds to total", () => {
     const c = character([]);
-    const result = computePower(c, null, { tags: [], statuses: [] }, 3);
+    const result = computePower(c, null, new Map(), { tags: [], statuses: [] }, 3);
     assert.equal(result.total, 3);
     assert.equal(result.items.length, 1);
     assert.equal(result.items[0]?.label, "Favored");
@@ -300,6 +312,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -320,7 +333,7 @@ describe("computePower", () => {
       powerTags: [powerTag("p1", "Worn", { scratched: true })],
     });
     const c = character([t]);
-    const res = resolveInvocations(c, null, {
+    const res = resolveInvocations(c, null, new Map(), {
       tags: [
         {
           tagId: "p1" as PowerTag["id"],
@@ -338,7 +351,7 @@ describe("computePower", () => {
       powerTags: [powerTag("p1", "Used", { burned: true, scratched: true })],
     });
     const c = character([t]);
-    const res = resolveInvocations(c, null, {
+    const res = resolveInvocations(c, null, new Map(), {
       tags: [
         {
           tagId: "p1" as PowerTag["id"],
@@ -355,7 +368,7 @@ describe("computePower", () => {
     const wk = weaknessTag("wk1", "Stubborn");
     const t = theme({ weaknessTag: wk });
     const c = character([t]);
-    const res = resolveInvocations(c, null, {
+    const res = resolveInvocations(c, null, new Map(), {
       tags: [
         {
           tagId: "wk1" as PowerTag["id"],
@@ -372,7 +385,7 @@ describe("computePower", () => {
     const wk = weaknessTag("wk1", "Stubborn");
     const t = theme({ weaknessTag: wk });
     const c = character([t]);
-    const res = resolveInvocations(c, null, {
+    const res = resolveInvocations(c, null, new Map(), {
       tags: [
         {
           tagId: "wk1" as PowerTag["id"],
@@ -394,6 +407,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       camp,
+      new Map(),
       {
         tags: [
           {
@@ -411,7 +425,7 @@ describe("computePower", () => {
 
   it("15. fellowship invocation without campaign rejected", () => {
     const c = character([]);
-    const res = resolveInvocations(c, null, {
+    const res = resolveInvocations(c, null, new Map(), {
       tags: [
         {
           tagId: "fp1" as PowerTag["id"],
@@ -430,7 +444,7 @@ describe("computePower", () => {
   it("16. fellowship weakness cannot be invoked", () => {
     const camp = buildCampaign("camp-2");
     const c = character([], [], [], [], [camp.id]);
-    const res = resolveInvocations(c, camp, {
+    const res = resolveInvocations(c, camp, new Map(), {
       tags: [
         {
           tagId: "fwk1" as PowerTag["id"],
@@ -455,6 +469,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -482,6 +497,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       null,
+      new Map(),
       {
         tags: [
           {
@@ -500,7 +516,7 @@ describe("computePower", () => {
   it("19. burning fellowship tag rejected", () => {
     const camp = buildCampaign("camp-3", [powerTag("fp1", "Banner")]);
     const c = character([], [], [], [], [camp.id]);
-    const res = resolveInvocations(c, camp, {
+    const res = resolveInvocations(c, camp, new Map(), {
       tags: [
         {
           tagId: "fp1" as PowerTag["id"],
@@ -518,7 +534,7 @@ describe("computePower", () => {
       powerTag("fp1", "Exhausted", { scratched: true }),
     ]);
     const c = character([], [], [], [], [camp.id]);
-    const res = resolveInvocations(c, camp, {
+    const res = resolveInvocations(c, camp, new Map(), {
       tags: [
         {
           tagId: "fp1" as PowerTag["id"],
@@ -540,7 +556,7 @@ describe("computePower", () => {
       powerTag("fp1", "Ready", { scratched: false }),
     ]);
     const c = character([], [], [], [], [camp.id]);
-    const res = resolveInvocations(c, camp, {
+    const res = resolveInvocations(c, camp, new Map(), {
       tags: [
         {
           tagId: "fp1" as PowerTag["id"],
@@ -567,6 +583,7 @@ describe("computePower", () => {
     const result = computePower(
       c,
       camp,
+      new Map(),
       {
         tags: [
           {
@@ -590,5 +607,133 @@ describe("computePower", () => {
       3,
     );
     assert.equal(result.total, 1 + 1 + 1 + 3);
+  });
+
+  // ---- Challenge invocations (prompt 14) ----
+
+  it("21. challenge invocation rejected when challenge not engaged", () => {
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const res = resolveInvocations(c, null, new Map(), {
+      tags: [
+        {
+          tagId: "ctag1" as PowerTag["id"],
+          location: {
+            kind: "challenge",
+            campaignId: "camp-eng" as CampaignId,
+            challengeId: "ch-missing" as never,
+          },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.match(res.reason, /no longer engaged/i);
+  });
+
+  it("22. challenge invocation rejected when tag scratched", () => {
+    const challengeId = "ch-1" as never;
+    const tagId = "ctag1" as PowerTag["id"];
+    const engaged = new Map([
+      [
+        challengeId as unknown as string,
+        {
+          id: challengeId,
+          campaignId: "camp-eng" as CampaignId,
+          name: "Bandit Chief",
+          tags: [
+            { id: tagId, name: "Worn", polarity: "hindering" as const, scratched: true },
+          ],
+          updatedAt: NOW,
+        },
+      ],
+    ]);
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const res = resolveInvocations(c, null, engaged, {
+      tags: [
+        {
+          tagId,
+          location: {
+            kind: "challenge",
+            campaignId: "camp-eng" as CampaignId,
+            challengeId,
+          },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.match(res.reason, /exhausted/i);
+  });
+
+  it("23. helpful challenge tag contributes +1", () => {
+    const challengeId = "ch-1" as never;
+    const tagId = "ctag1" as PowerTag["id"];
+    const engaged = new Map([
+      [
+        challengeId as unknown as string,
+        {
+          id: challengeId,
+          campaignId: "camp-eng" as CampaignId,
+          name: "Friendly Beast",
+          tags: [
+            { id: tagId, name: "Loyal", polarity: "helpful" as const, scratched: false },
+          ],
+          updatedAt: NOW,
+        },
+      ],
+    ]);
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const result = computePower(c, null, engaged, {
+      tags: [
+        {
+          tagId,
+          location: {
+            kind: "challenge",
+            campaignId: "camp-eng" as CampaignId,
+            challengeId,
+          },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    }, 0);
+    assert.equal(result.total, 1);
+  });
+
+  it("24. hindering challenge tag contributes -1", () => {
+    const challengeId = "ch-1" as never;
+    const tagId = "ctag1" as PowerTag["id"];
+    const engaged = new Map([
+      [
+        challengeId as unknown as string,
+        {
+          id: challengeId,
+          campaignId: "camp-eng" as CampaignId,
+          name: "Bandit Chief",
+          tags: [
+            { id: tagId, name: "Brutish", polarity: "hindering" as const, scratched: false },
+          ],
+          updatedAt: NOW,
+        },
+      ],
+    ]);
+    const c = character([], [], [], [], ["camp-eng" as CampaignId]);
+    const result = computePower(c, null, engaged, {
+      tags: [
+        {
+          tagId,
+          location: {
+            kind: "challenge",
+            campaignId: "camp-eng" as CampaignId,
+            challengeId,
+          },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    }, 0);
+    assert.equal(result.total, -1);
   });
 });

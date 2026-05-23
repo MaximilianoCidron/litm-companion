@@ -4,8 +4,7 @@ import { AddStatusForm } from "./add-status-form";
 import { StatusEditor } from "./status-editor";
 
 export function StatusManager() {
-  const { character, role } = useCharacter();
-  const canEdit = role === "owner" || role === "gm";
+  const { character, canEdit } = useCharacter();
 
   const helpful = character.statuses.filter((s) => s.polarity === "helpful");
   const hindering = character.statuses.filter(

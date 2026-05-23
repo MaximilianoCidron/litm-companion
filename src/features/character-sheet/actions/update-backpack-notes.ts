@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { withAction } from "@/shared/auth";
 import { UpdateBackpackNotesInput } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 
 export const updateBackpackNotes = withAction(
   UpdateBackpackNotesInput,
@@ -16,6 +16,7 @@ export const updateBackpackNotes = withAction(
         ctx.uid,
         tx,
       );
+      assertNotRetired(access.snap.data() ?? {}); // retired-character guard
 
       tx.update(access.snap.ref, {
         "backpack.notes": input.notes,

@@ -15,7 +15,10 @@ import {
   type ChallengeSummary,
   type Character,
   type CharacterSummary,
+  type EngagedChallenge,
   type Invitation,
+  type PendingThreat,
+  type SessionLogEntry,
 } from "../schemas";
 import {
   requireCampaignGm,
@@ -26,7 +29,10 @@ import {
   firestoreToCampaign,
   firestoreToChallenge,
   firestoreToCharacter,
+  firestoreToEngagedChallenge,
   firestoreToInvitation,
+  firestoreToPendingThreat,
+  firestoreToSessionLogEntry,
 } from "./serialize";
 
 const FIRESTORE_IN_CAP = 30;
@@ -42,7 +48,10 @@ const FIRESTORE_IN_CAP = 30;
  * Captured in firestore.indexes.json. If Firestore prompts for an index URL
  * at runtime, copy the URL from the error and add the equivalent entry.
  */
-export async function getMyCharacters(uid: string): Promise<CharacterSummary[]> {
+export async function getMyCharacters(
+  uid: string,
+  options: { includeRetired?: boolean } = {},
+): Promise<CharacterSummary[]> {
   const db = getAdminDb();
   const charsSnap = await db
     .collection("characters")
@@ -51,8 +60,16 @@ export async function getMyCharacters(uid: string): Promise<CharacterSummary[]> 
     .limit(50)
     .get();
 
+  // Filter client-side so legacy docs lacking a `status` field count as
+  // active. Once all docs are backfilled we can move this into the query.
+  const docs = options.includeRetired
+    ? charsSnap.docs
+    : charsSnap.docs.filter(
+        (d) => (d.data().status ?? "active") !== "retired",
+      );
+
   const campaignIds = new Set<string>();
-  for (const doc of charsSnap.docs) {
+  for (const doc of docs) {
     const ids = (doc.data().campaignIds ?? []) as string[];
     for (const id of ids) campaignIds.add(id);
   }
@@ -70,7 +87,7 @@ export async function getMyCharacters(uid: string): Promise<CharacterSummary[]> 
     }
   }
 
-  return charsSnap.docs.map((doc) => {
+  return docs.map((doc) => {
     const data = doc.data();
     const firstCampId = ((data.campaignIds ?? []) as string[])[0];
     return CharacterSummarySchema.parse({
@@ -80,6 +97,7 @@ export async function getMyCharacters(uid: string): Promise<CharacterSummary[]> 
       avatarUrl: (data.identity?.avatarUrl as string | null | undefined) ?? null,
       campaignName: firstCampId ? (campaignNames.get(firstCampId) ?? null) : null,
       promise: (data.progression?.promise as number | undefined) ?? 0,
+      status: (data.status as "active" | "retired" | undefined) ?? "active",
     });
   });
 }
@@ -261,6 +279,99 @@ export async function getChallenge(
     throw new ActionError("NOT_FOUND", "Challenge not found.");
   }
   return firestoreToChallenge(snap);
+}
+
+/**
+ * Read the most recent session-log entries for a campaign. Authorized via
+ * membership — GM and players see the same set. Malformed docs are skipped
+ * (logged) so one bad entry can't break the page.
+ */
+export async function getSessionLog(
+  rawCampaignId: string,
+  uid: string,
+  limitN: number = 100,
+): Promise<SessionLogEntry[]> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignMembership(campaignId, uid);
+  const db = getAdminDb();
+  const snap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("sessionLog")
+    .orderBy("createdAt", "desc")
+    .limit(limitN)
+    .get();
+  const entries: SessionLogEntry[] = [];
+  for (const doc of snap.docs) {
+    try {
+      entries.push(firestoreToSessionLogEntry(doc));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[session-log] skipping malformed entry", doc.id, err);
+    }
+  }
+  return entries;
+}
+
+/**
+ * Read the campaign's engaged-challenge mirror docs (player-visible subset).
+ * Any member (GM or playerUid) may call; the mirror itself is intentionally
+ * thin — statuses/limits/threats/notes stay on the GM-only source doc.
+ */
+export async function getEngagedChallenges(
+  rawCampaignId: string,
+  uid: string,
+): Promise<EngagedChallenge[]> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignMembership(campaignId, uid);
+  const db = getAdminDb();
+  const snap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("engagedChallenges")
+    .get();
+  const result: EngagedChallenge[] = [];
+  for (const doc of snap.docs) {
+    try {
+      result.push(firestoreToEngagedChallenge(doc));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[engaged-challenges] malformed mirror", doc.id, err);
+    }
+  }
+  return result;
+}
+
+/**
+ * Read active (awaitingReaction | reactionRolled) pending threats for a
+ * campaign. Members + GM see the same set; client UIs branch on role to
+ * decide what to render.
+ */
+export async function getPendingThreats(
+  rawCampaignId: string,
+  uid: string,
+): Promise<PendingThreat[]> {
+  const campaignId = CampaignId.parse(rawCampaignId);
+  await requireCampaignMembership(campaignId, uid);
+  const db = getAdminDb();
+  const snap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("pendingThreats")
+    .where("status", "in", ["awaitingReaction", "reactionRolled"])
+    .orderBy("createdAt", "desc")
+    .limit(20)
+    .get();
+  const result: PendingThreat[] = [];
+  for (const doc of snap.docs) {
+    try {
+      result.push(firestoreToPendingThreat(doc));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[pending-threats] malformed", doc.id, err);
+    }
+  }
+  return result;
 }
 
 export async function getCharacterWithCampaign(

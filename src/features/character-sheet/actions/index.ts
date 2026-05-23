@@ -1,6 +1,8 @@
 export { createCharacter } from "./create-character";
 export { updateTag } from "./update-tag";
 export { burnTag } from "./burn-tag";
+export { unburnTag } from "./unburn-tag";
+export { resolveMomentOfFulfillment } from "./resolve-moment-of-fulfillment";
 export { applyStatus } from "./apply-status";
 export { markTrack } from "./mark-track";
 export { updateTheme } from "./update-theme";
@@ -30,3 +32,9 @@ export { createChallenge } from "./create-challenge";
 export { deleteChallenge } from "./delete-challenge";
 export { mutateChallenge } from "./mutate-challenge";
 export { deliverThreat } from "./deliver-threat";
+export { addSessionLogEntry } from "./add-session-log-entry";
+export { deleteSessionLogEntry } from "./delete-session-log-entry";
+export { toggleSessionLogPin } from "./toggle-session-log-pin";
+export { offerReactionForThreat } from "./offer-reaction-for-threat";
+export { resolvePendingThreat } from "./resolve-pending-threat";
+export { cancelPendingThreat } from "./cancel-pending-threat";

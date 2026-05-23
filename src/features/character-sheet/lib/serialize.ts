@@ -2,13 +2,19 @@ import {
   CampaignSchema,
   ChallengeSchema,
   CharacterSchema,
+  EngagedChallengeSchema,
   InvitationSchema,
+  PendingThreatSchema,
   RollRecordSchema,
+  SessionLogEntrySchema,
   type Campaign,
   type Challenge,
   type Character,
+  type EngagedChallenge,
   type Invitation,
+  type PendingThreat,
   type RollRecord,
+  type SessionLogEntry,
 } from "../schemas";
 
 type TimestampLike = { toDate(): Date };
@@ -162,5 +168,57 @@ export function firestoreToChallenge(snap: SnapshotLike): Challenge {
     id: snap.id,
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt),
+  });
+}
+
+/**
+ * Convert a Firestore session-log snapshot (subcollection
+ * `campaigns/{cid}/sessionLog/{eid}`) to the validated wire-shape
+ * `SessionLogEntry`. Mirrors the other firestoreTo* helpers.
+ */
+/**
+ * Convert a Firestore engaged-challenge mirror snapshot
+ * (`campaigns/{cid}/engagedChallenges/{cid}`) to the validated wire shape.
+ * Mirrors carry only the player-visible subset; status/limit/threat/notes
+ * stay on the GM-only source doc.
+ */
+export function firestoreToEngagedChallenge(snap: SnapshotLike): EngagedChallenge {
+  const data = snap.data();
+  if (!data) {
+    throw new Error(`EngagedChallenge ${snap.id} not found.`);
+  }
+  return EngagedChallengeSchema.parse({
+    ...data,
+    id: snap.id,
+    updatedAt: toIso(data.updatedAt),
+  });
+}
+
+/**
+ * Convert a Firestore pendingThreat snapshot
+ * (`campaigns/{cid}/pendingThreats/{ptId}`) to the validated wire shape.
+ */
+export function firestoreToPendingThreat(snap: SnapshotLike): PendingThreat {
+  const data = snap.data();
+  if (!data) {
+    throw new Error(`PendingThreat ${snap.id} not found.`);
+  }
+  return PendingThreatSchema.parse({
+    ...data,
+    id: snap.id,
+    createdAt: toIso(data.createdAt),
+    resolvedAt: data.resolvedAt ? toIso(data.resolvedAt) : null,
+  });
+}
+
+export function firestoreToSessionLogEntry(snap: SnapshotLike): SessionLogEntry {
+  const data = snap.data();
+  if (!data) {
+    throw new Error(`Session log entry ${snap.id} not found.`);
+  }
+  return SessionLogEntrySchema.parse({
+    ...data,
+    id: snap.id,
+    createdAt: toIso(data.createdAt),
   });
 }

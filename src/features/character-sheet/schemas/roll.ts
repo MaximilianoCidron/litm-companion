@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
   CampaignId,
+  ChallengeId,
   CharacterId,
   FellowshipRelationshipId,
+  PendingThreatId,
   RollId,
   StatusId,
   TagId,
@@ -16,6 +18,13 @@ export const TagLocationSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("relationship"),
     relationshipId: FellowshipRelationshipId,
+  }),
+  // Player invocation of an engaged challenge's tag. campaignId is kept on
+  // the location for self-contained resolver lookups.
+  z.object({
+    kind: z.literal("challenge"),
+    campaignId: CampaignId,
+    challengeId: ChallengeId,
   }),
 ]);
 export type TagLocation = z.infer<typeof TagLocationSchema>;
@@ -70,5 +79,13 @@ export const RollRecordSchema = z.object({
   power: z.number().int(),
   total: z.number().int(),
   tier: RollTierSchema.nullable(),
+  // When this roll was a Reaction triggered by a pending threat, the link
+  // is captured here. Legacy roll docs parse as null via the default.
+  reactingTo: z
+    .object({
+      pendingThreatId: PendingThreatId,
+    })
+    .nullable()
+    .default(null),
 });
 export type RollRecord = z.infer<typeof RollRecordSchema>;

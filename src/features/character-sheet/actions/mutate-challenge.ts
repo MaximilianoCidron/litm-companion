@@ -16,6 +16,19 @@ import {
 } from "../schemas";
 import { requireCampaignGm } from "../lib/access";
 import { firestoreToChallenge } from "../lib/serialize";
+import { syncEngagedMirror } from "../lib/engaged-challenge-sync";
+
+// Ops that change a player-visible field (name or tags). When the challenge
+// is currently engaged, these must re-sync the mirror so player views stay
+// in lock-step with the source.
+const MIRROR_AFFECTING_OPS = new Set<MutateChallengeInput["op"]["kind"]>([
+  "setName",
+  "addTag",
+  "removeTag",
+  "renameTag",
+  "toggleTagScratch",
+  "refreshTags",
+]);
 
 const STATUS_LIMIT = 20;
 const TAG_LIMIT = 20;
@@ -228,6 +241,15 @@ export const mutateChallenge = withAction(
           };
           break;
         }
+
+        case "setEngaged": {
+          next.engaged = op.engaged;
+          break;
+        }
+        case "refreshTags": {
+          next.tags = next.tags.map((t) => ({ ...t, scratched: false }));
+          break;
+        }
       }
 
       tx.update(ref, {
@@ -240,8 +262,20 @@ export const mutateChallenge = withAction(
         statuses: next.statuses,
         limits: next.limits,
         threats: next.threats,
+        engaged: next.engaged,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // Mirror sync. `setEngaged` always re-syncs (creates or deletes mirror).
+      // Other mirror-affecting ops only sync when the challenge is currently
+      // engaged — otherwise the mirror doesn't exist and a delete would be
+      // an unnecessary no-op write.
+      const needsSync =
+        op.kind === "setEngaged" ||
+        (MIRROR_AFFECTING_OPS.has(op.kind) && next.engaged);
+      if (needsSync) {
+        syncEngagedMirror(tx, next);
+      }
 
       return { challengeId: input.challengeId, kind: op.kind };
     });

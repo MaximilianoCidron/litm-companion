@@ -7,6 +7,9 @@ import { BackpackSchema } from "./backpack";
 import { ProgressionSchema } from "./progression";
 import { FellowshipRelationshipSchema } from "./fellowship";
 
+export const CharacterStatusSchema = z.enum(["active", "retired"]);
+export type CharacterStatus = z.infer<typeof CharacterStatusSchema>;
+
 export const CharacterSchema = z.object({
   id: CharacterId,
   userId: z.string().min(1),
@@ -19,6 +22,8 @@ export const CharacterSchema = z.object({
   fellowship: z.object({
     relationships: z.array(FellowshipRelationshipSchema).max(10),
   }),
+  // Legacy docs lack this field — Zod default keeps them parseable.
+  status: CharacterStatusSchema.default("active"),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -32,6 +37,7 @@ export const CharacterSummarySchema = z.object({
   avatarUrl: z.string().url().nullable(),
   campaignName: z.string().nullable(),
   promise: z.number().int().min(0).max(5),
+  status: CharacterStatusSchema.default("active"),
 });
 
 export type CharacterSummary = z.infer<typeof CharacterSummarySchema>;

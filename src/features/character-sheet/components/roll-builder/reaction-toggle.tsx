@@ -1,23 +1,39 @@
 "use client";
 import { Shield } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
-import { useIsReaction, useRollBuilder } from "../../stores/roll-builder";
+import {
+  useIsReaction,
+  useReactingToPendingThreatId,
+  useRollBuilder,
+} from "../../stores/roll-builder";
 
 export function ReactionToggle() {
   const active = useIsReaction();
+  const reactingTo = useReactingToPendingThreatId();
   const setReaction = useRollBuilder((s) => s.setReaction);
+  const locked = reactingTo !== null;
   return (
     <button
       type="button"
       role="switch"
       aria-checked={active}
-      onClick={() => setReaction(!active)}
+      disabled={locked}
+      title={
+        locked
+          ? "Reacting to a pending threat — Reaction is locked on."
+          : undefined
+      }
+      onClick={() => {
+        if (locked) return;
+        setReaction(!active);
+      }}
       className={cn(
         "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-ember",
         active
           ? "bg-ember/10 text-ember-text-light dark:bg-ember/20 dark:text-ember-text-dark"
           : "text-ink-base hover:bg-parchment-soft dark:text-parchment-base dark:hover:bg-ink-soft",
+        locked && "cursor-not-allowed",
       )}
     >
       <span

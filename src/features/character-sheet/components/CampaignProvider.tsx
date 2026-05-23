@@ -2,16 +2,31 @@
 "use client";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useCampaignSnapshot, type CampaignSnapshotState } from "../hooks/use-campaign-snapshot";
+import { useEngagedChallenges } from "../hooks/use-engaged-challenges";
+import { usePendingThreats } from "../hooks/use-pending-threats";
 import { useCharacter } from "./CharacterProvider";
-import type { Campaign } from "../schemas";
+import type { Campaign, EngagedChallenge, PendingThreat } from "../schemas";
 
 export type CampaignContextValue =
-  | { status: "none" }
-  | { status: "live"; campaign: Campaign; role: "gm" | "member"; error: null }
+  | {
+      status: "none";
+      engagedChallenges: readonly EngagedChallenge[];
+      pendingThreats: readonly PendingThreat[];
+    }
+  | {
+      status: "live";
+      campaign: Campaign;
+      role: "gm" | "member";
+      engagedChallenges: readonly EngagedChallenge[];
+      pendingThreats: readonly PendingThreat[];
+      error: null;
+    }
   | {
       status: "error";
       campaign: Campaign | null;
       role: "gm" | "member" | null;
+      engagedChallenges: readonly EngagedChallenge[];
+      pendingThreats: readonly PendingThreat[];
       error: Error;
     };
 
@@ -85,9 +100,12 @@ function CharacterScopedCampaignProvider({
   const effectiveUid = currentUid ?? characterUid;
   const campaignId = character.campaignIds[0] ?? null;
   const state = useCampaignSnapshot(campaignId, initial);
+  const { engagedChallenges } = useEngagedChallenges(campaignId);
+  const { pendingThreats } = usePendingThreats(campaignId);
   const value = useMemo(
-    () => toContextValue(state, effectiveUid),
-    [state, effectiveUid],
+    () =>
+      toContextValue(state, effectiveUid, engagedChallenges, pendingThreats),
+    [state, effectiveUid, engagedChallenges, pendingThreats],
   );
   return (
     <CampaignContext.Provider value={value}>
@@ -108,9 +126,11 @@ function FixedCampaignProvider({
   children: ReactNode;
 }) {
   const state = useCampaignSnapshot(campaignId, initial);
+  const { engagedChallenges } = useEngagedChallenges(campaignId);
+  const { pendingThreats } = usePendingThreats(campaignId);
   const value = useMemo(
-    () => toContextValue(state, currentUid),
-    [state, currentUid],
+    () => toContextValue(state, currentUid, engagedChallenges, pendingThreats),
+    [state, currentUid, engagedChallenges, pendingThreats],
   );
   return (
     <CampaignContext.Provider value={value}>
@@ -122,13 +142,18 @@ function FixedCampaignProvider({
 function toContextValue(
   state: CampaignSnapshotState,
   uid: string | undefined,
+  engagedChallenges: readonly EngagedChallenge[],
+  pendingThreats: readonly PendingThreat[],
 ): CampaignContextValue {
-  if (state.status === "none") return { status: "none" };
+  if (state.status === "none")
+    return { status: "none", engagedChallenges, pendingThreats };
   if (state.status === "live") {
     return {
       status: "live",
       campaign: state.campaign,
       role: resolveRole(state.campaign, uid),
+      engagedChallenges,
+      pendingThreats,
       error: null,
     };
   }
@@ -136,6 +161,8 @@ function toContextValue(
     status: "error",
     campaign: state.campaign,
     role: state.campaign ? resolveRole(state.campaign, uid) : null,
+    engagedChallenges,
+    pendingThreats,
     error: state.error,
   };
 }

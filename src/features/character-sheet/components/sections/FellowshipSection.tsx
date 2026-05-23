@@ -6,9 +6,8 @@ import { FellowshipDisplay } from "../fellowship/fellowship-display";
 import { RelationshipManager } from "../fellowship/relationship-manager";
 
 export function FellowshipSection() {
-  const { character, role } = useCharacter();
+  const { character, canEdit } = useCharacter();
   const campaign = useCampaign();
-  const canEdit = role === "owner" || role === "gm";
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">

@@ -12,7 +12,13 @@ import {
   useMightModifier,
   useRollBuilder,
 } from "../../stores/roll-builder";
-import type { StatusId, StatusInvocationInput, TagInvocationInput } from "../../schemas";
+import type {
+  CampaignId,
+  PendingThreatId,
+  StatusId,
+  StatusInvocationInput,
+  TagInvocationInput,
+} from "../../schemas";
 
 export function RollButton() {
   const { character } = useCharacter();
@@ -45,17 +51,32 @@ export function RollButton() {
         invokedStatuses.values(),
       ).map((id) => ({ statusId: id as StatusId }));
 
+      const reactingToPendingThreatId =
+        useRollBuilder.getState().reactingToPendingThreatId;
+      const reactingToCampaignId =
+        useRollBuilder.getState().reactingToCampaignId;
+      const reactingTo =
+        reactingToPendingThreatId && reactingToCampaignId
+          ? {
+              pendingThreatId: reactingToPendingThreatId as PendingThreatId,
+              campaignId: reactingToCampaignId as CampaignId,
+            }
+          : undefined;
+
       const result = await callAction(
         commitRoll({
           characterId: character.id,
           isReaction,
           invocations: { tags, statuses },
           mightModifier,
+          ...(reactingTo ? { reactingTo } : {}),
         }),
       );
       if (result) {
         openResultDialog(result.rollId);
         resetSelectionOnly();
+        // clear reactingTo* alongside selection cleanup
+        useRollBuilder.getState().clearReaction();
       }
     });
   };

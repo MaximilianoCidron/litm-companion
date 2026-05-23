@@ -31,6 +31,8 @@ export interface TagPillProps {
   /** Story-tag only: toggle the camp-rest preservation flag. */
   onTogglePreserve?: () => Promise<void>;
   isPreserved?: boolean;
+  /** Power-tag only: restore a burned tag back to active. */
+  onUnburn?: () => Promise<void>;
   disabled?: boolean;
   className?: string;
 }
@@ -92,8 +94,14 @@ export function TagPill(props: TagPillProps) {
     className,
   } = props;
 
+  const onUnburn = props.onUnburn;
   const interactive = Boolean(
-    onToggleScratch || onBurn || onRename || onRemove || onTogglePreserve,
+    onToggleScratch ||
+      onBurn ||
+      onRename ||
+      onRemove ||
+      onTogglePreserve ||
+      onUnburn,
   );
 
   if (!interactive) {
@@ -111,6 +119,7 @@ export function TagPill(props: TagPillProps) {
       onRemove={onRemove}
       onTogglePreserve={onTogglePreserve}
       isPreserved={isPreserved}
+      onUnburn={onUnburn}
       disabled={disabled}
       className={className}
     />
@@ -164,6 +173,7 @@ function InteractivePill({
   onRemove,
   onTogglePreserve,
   isPreserved = false,
+  onUnburn,
   disabled,
   className,
 }: TagPillProps) {
@@ -178,6 +188,7 @@ function InteractivePill({
   const showRenameItem = Boolean(onRename);
   const showRemoveItem = Boolean(onRemove);
   const showPreserveItem = Boolean(onTogglePreserve);
+  const showUnburnItem = Boolean(onUnburn) && isBurned;
 
   const stateClass =
     state === "scratched"
@@ -308,6 +319,7 @@ function InteractivePill({
         showBurn={showBurnItem}
         showRemove={showRemoveItem}
         showPreserve={showPreserveItem}
+        showUnburn={showUnburnItem}
         isPreserved={isPreserved}
         onRename={startRename}
         onBurn={onBurn ? () => runWithPending(onBurn) : undefined}
@@ -315,6 +327,7 @@ function InteractivePill({
         onTogglePreserve={
           onTogglePreserve ? () => runWithPending(onTogglePreserve) : undefined
         }
+        onUnburn={onUnburn ? () => runWithPending(onUnburn) : undefined}
       />
     </span>
   );
@@ -328,11 +341,13 @@ interface PillMenuProps {
   showBurn: boolean;
   showRemove: boolean;
   showPreserve: boolean;
+  showUnburn: boolean;
   isPreserved: boolean;
   onRename: () => void;
   onBurn?: () => Promise<void>;
   onRemove?: () => Promise<void>;
   onTogglePreserve?: () => Promise<void>;
+  onUnburn?: () => Promise<void>;
 }
 
 function PillMenu({
@@ -343,13 +358,16 @@ function PillMenu({
   showBurn,
   showRemove,
   showPreserve,
+  showUnburn,
   isPreserved,
   onRename,
   onBurn,
   onRemove,
   onTogglePreserve,
+  onUnburn,
 }: PillMenuProps) {
-  const anyItem = showRename || showBurn || showRemove || showPreserve;
+  const anyItem =
+    showRename || showBurn || showRemove || showPreserve || showUnburn;
   if (!anyItem) return null;
 
   return (
@@ -380,6 +398,11 @@ function PillMenu({
         {showPreserve && onTogglePreserve ? (
           <DropdownMenuItem onSelect={() => void onTogglePreserve()}>
             {isPreserved ? "Discard at next camp" : "Preserve when camping"}
+          </DropdownMenuItem>
+        ) : null}
+        {showUnburn && onUnburn ? (
+          <DropdownMenuItem onSelect={() => void onUnburn()}>
+            Restore
           </DropdownMenuItem>
         ) : null}
         {showBurn && onBurn ? (

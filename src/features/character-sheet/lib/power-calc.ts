@@ -1,6 +1,7 @@
 import type {
   Campaign,
   Character,
+  EngagedChallenge,
   MightModifier,
   PowerTag,
   ResolvedStatusInvocation,
@@ -51,6 +52,7 @@ type ResolveErr = { ok: false; reason: string };
 export function resolveInvocations(
   character: Character,
   campaign: Campaign | null,
+  engagedChallenges: ReadonlyMap<string, EngagedChallenge>,
   invocations: {
     tags: TagInvocationInput[];
     statuses: StatusInvocationInput[];
@@ -197,6 +199,51 @@ export function resolveInvocations(
       };
     }
 
+    if (loc.kind === "challenge") {
+      if (inv.burn) {
+        return {
+          ok: false,
+          reason: "Challenge tags cannot be burned.",
+        };
+      }
+      const engaged = engagedChallenges.get(loc.challengeId);
+      if (!engaged) {
+        return {
+          ok: false,
+          reason: "A challenge you invoked is no longer engaged. Clear it and try again.",
+        };
+      }
+      if (engaged.campaignId !== loc.campaignId) {
+        return {
+          ok: false,
+          reason: "Challenge campaign mismatch.",
+        };
+      }
+      const challengeTag = engaged.tags.find((t) => t.id === inv.tagId);
+      if (!challengeTag) {
+        return {
+          ok: false,
+          reason: `Challenge tag ${inv.tagId} not found.`,
+        };
+      }
+      if (challengeTag.scratched) {
+        return {
+          ok: false,
+          reason: `"${challengeTag.name}" is exhausted — the GM can refresh this challenge.`,
+        };
+      }
+      tags.push({
+        tagId: inv.tagId,
+        location: loc,
+        name: `${engaged.name} · ${challengeTag.name}`,
+        tagKind: "story",
+        polarity: challengeTag.polarity,
+        burned: false,
+        contribution: challengeTag.polarity === "helpful" ? 1 : -1,
+      });
+      continue;
+    }
+
     // relationship
     if (inv.burn) {
       return {
@@ -287,13 +334,19 @@ export function resolveInvocations(
 export function computePower(
   character: Character,
   campaign: Campaign | null,
+  engagedChallenges: ReadonlyMap<string, EngagedChallenge>,
   invocations: {
     tags: TagInvocationInput[];
     statuses: StatusInvocationInput[];
   },
   mightModifier: MightModifier,
 ): PowerBreakdown {
-  const resolved = resolveInvocations(character, campaign, invocations);
+  const resolved = resolveInvocations(
+    character,
+    campaign,
+    engagedChallenges,
+    invocations,
+  );
   if (!resolved.ok) {
     return { total: 0, items: [] };
   }

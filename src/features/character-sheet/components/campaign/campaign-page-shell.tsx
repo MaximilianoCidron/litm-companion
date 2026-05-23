@@ -1,5 +1,7 @@
 // TODO(refactor): promote campaign subdomain to its own feature.
 "use client";
+import Link from "next/link";
+import { ScrollText } from "lucide-react";
 import { useCampaign } from "../CampaignProvider";
 import { FellowshipDisplay } from "../fellowship/fellowship-display";
 import { ChallengesPanel } from "./challenges";
@@ -44,9 +46,18 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
         <span className="font-display text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
           Fellowship
         </span>
-        <h1 className="font-display text-3xl text-ink-base dark:text-parchment-base">
-          {live.name}
-        </h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="font-display text-3xl text-ink-base dark:text-parchment-base">
+            {live.name}
+          </h1>
+          <Link
+            href={`/campaigns/${live.id}/log`}
+            className="inline-flex items-center gap-1 text-sm text-ember hover:underline"
+          >
+            <ScrollText className="h-4 w-4" aria-hidden="true" />
+            Session log
+          </Link>
+        </div>
         {isGm ? (
           <p className="text-xs font-display uppercase tracking-wider text-ember">
             You are the GM

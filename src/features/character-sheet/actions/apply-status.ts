@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { ApplyStatusInput } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 
 type StatusDoc = {
   id: string;
@@ -35,6 +35,7 @@ export const applyStatus = withAction(
       );
 
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
       const statuses: StatusDoc[] = Array.isArray(data.statuses)
         ? [...data.statuses]
         : [];

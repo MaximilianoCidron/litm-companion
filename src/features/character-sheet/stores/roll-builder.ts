@@ -23,6 +23,8 @@ export interface RollBuilderState {
   expanded: boolean;
   resultDialogRollId: string | null;
   resultDialogAnimate: boolean;
+  reactingToPendingThreatId: string | null;
+  reactingToCampaignId: string | null;
 
   toggleTag(key: TagInvocationKey, payload: Omit<InvokedTagEntry, "burn">): void;
   toggleBurn(key: TagInvocationKey): void;
@@ -32,6 +34,8 @@ export interface RollBuilderState {
   setExpanded(b: boolean): void;
   openResultDialog(rollId: string, animate?: boolean): void;
   closeResultDialog(): void;
+  beginReaction(pendingThreatId: string, campaignId: string): void;
+  clearReaction(): void;
   reset(): void;
   resetSelectionOnly(): void;
 }
@@ -44,6 +48,8 @@ export function makeTagKey(
   if (location.kind === "backpack") return `backpack:${tagId}`;
   if (location.kind === "fellowship")
     return `fellowship:${location.campaignId}:${tagId}`;
+  if (location.kind === "challenge")
+    return `challenge:${location.challengeId}:${tagId}`;
   return `relationship:${location.relationshipId}`;
 }
 
@@ -56,6 +62,8 @@ export const useRollBuilder = create<RollBuilderState>()(
     expanded: false,
     resultDialogRollId: null,
     resultDialogAnimate: true,
+    reactingToPendingThreatId: null,
+    reactingToCampaignId: null,
 
     toggleTag: (key, payload) =>
       set((s) => {
@@ -97,6 +105,22 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.resultDialogRollId = null;
         s.resultDialogAnimate = true;
       }),
+    beginReaction: (pendingThreatId, campaignId) =>
+      set((s) => {
+        s.invokedTags.clear();
+        s.invokedStatuses.clear();
+        s.mightModifier = 0 as MightModifier;
+        s.isReaction = true;
+        s.expanded = true;
+        s.reactingToPendingThreatId = pendingThreatId;
+        s.reactingToCampaignId = campaignId;
+      }),
+    clearReaction: () =>
+      set((s) => {
+        s.reactingToPendingThreatId = null;
+        s.reactingToCampaignId = null;
+        s.isReaction = false;
+      }),
     reset: () =>
       set((s) => {
         s.invokedTags.clear();
@@ -106,6 +130,8 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.expanded = false;
         s.resultDialogRollId = null;
         s.resultDialogAnimate = true;
+        s.reactingToPendingThreatId = null;
+        s.reactingToCampaignId = null;
       }),
     resetSelectionOnly: () =>
       set((s) => {
@@ -113,6 +139,8 @@ export const useRollBuilder = create<RollBuilderState>()(
         s.invokedStatuses.clear();
         s.mightModifier = 0 as MightModifier;
         s.isReaction = false;
+        s.reactingToPendingThreatId = null;
+        s.reactingToCampaignId = null;
       }),
   })),
 );
@@ -130,3 +158,7 @@ export const useResultDialogRollId = (): string | null =>
   useRollBuilder((s) => s.resultDialogRollId);
 export const useResultDialogAnimate = (): boolean =>
   useRollBuilder((s) => s.resultDialogAnimate);
+export const useReactingToPendingThreatId = (): string | null =>
+  useRollBuilder((s) => s.reactingToPendingThreatId);
+export const useReactingToCampaignId = (): string | null =>
+  useRollBuilder((s) => s.reactingToCampaignId);

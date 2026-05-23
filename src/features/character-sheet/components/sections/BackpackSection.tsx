@@ -12,9 +12,8 @@ import { AddStoryTagForm } from "../backpack/add-story-tag-form";
 import type { CharacterId, TagId } from "../../schemas";
 
 export function BackpackSection() {
-  const { character, role } = useCharacter();
+  const { character, canEdit } = useCharacter();
   const callAction = useActionWithToast();
-  const canEdit = role === "owner" || role === "gm";
   const { storyTags, notes } = character.backpack;
 
   const characterId: CharacterId = character.id;

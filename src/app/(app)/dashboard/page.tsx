@@ -7,10 +7,17 @@ import {
   getMyCharacters,
 } from "@/features/character-sheet/lib/queries";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ archived?: string }>;
+}) {
   const user = await getSessionUser();
+  const params = (await searchParams) ?? {};
+  const includeRetired = params.archived === "1";
+
   const [characters, campaigns] = await Promise.all([
-    getMyCharacters(user.uid),
+    getMyCharacters(user.uid, { includeRetired }),
     getMyCampaigns(user.uid),
   ]);
   const firstName =
@@ -21,6 +28,14 @@ export default async function DashboardPage() {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 md:px-6 lg:px-8">
       <DashboardHeader firstName={firstName} />
+      <div className="flex items-center justify-end">
+        <Link
+          href={includeRetired ? "/dashboard" : "/dashboard?archived=1"}
+          className="text-sm text-ink-muted underline-offset-2 hover:underline dark:text-parchment-muted"
+        >
+          {includeRetired ? "Hide archived" : "Show archived"}
+        </Link>
+      </div>
       <CharacterGrid characters={characters} />
       {campaigns.length > 0 ? (
         <section className="flex flex-col gap-4">

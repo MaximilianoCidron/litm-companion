@@ -7,7 +7,11 @@ import type {
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { UpdateTagInput, type UpdateTagInput as UpdateTagInputT } from "../schemas";
-import { requireCampaignGm, requireCharacterAccess } from "../lib/access";
+import {
+  assertNotRetired,
+  requireCampaignGm,
+  requireCharacterAccess,
+} from "../lib/access";
 
 interface UpdateTagResult {
   tagId: string;
@@ -48,6 +52,7 @@ export const updateTag = withAction(
         tx,
       );
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
 
       if (input.location.kind === "theme") {
         return applyToTheme(input, data, access.snap.ref, tx);

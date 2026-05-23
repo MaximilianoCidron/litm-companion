@@ -3,8 +3,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { ReplaceThemeInput } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 import { buildBlankTheme } from "../lib/character-factory";
+import {
+  getAuthorDisplayName,
+  summarizeThemeAdvancement,
+  writeLogEntry,
+} from "../lib/session-log";
 
 const PROMISE_CAP = 5;
 
@@ -27,6 +32,7 @@ export const replaceTheme = withAction(
       );
 
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
       const themes = Array.isArray(data.themes)
         ? [...(data.themes as Record<string, unknown>[])]
         : [];
@@ -66,6 +72,41 @@ export const replaceTheme = withAction(
         progression,
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      const campaignIds = Array.isArray(data.campaignIds)
+        ? (data.campaignIds as string[])
+        : [];
+      const logCampaignId = campaignIds[0] ?? null;
+      if (logCampaignId) {
+        const characterName =
+          ((data.identity as Record<string, unknown> | undefined)?.name as
+            | string
+            | undefined) ?? "A hero";
+        const oldThemeName = (original.name as string | undefined) ?? "";
+        writeLogEntry(tx, {
+          campaignId: logCampaignId,
+          authorUid: ctx.uid,
+          authorName: getAuthorDisplayName(ctx),
+          subjectCharacterId: input.characterId,
+          subjectCharacterName: characterName,
+          text: summarizeThemeAdvancement(
+            characterName,
+            "replace",
+            oldThemeName,
+          ),
+          details: {
+            kind: "themeAdvancement",
+            advancementKind: "replace",
+            themeId: newTheme.id,
+            themeName: oldThemeName,
+          },
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        console.debug(
+          "[session-log] replaceTheme outside campaign — no log entry emitted",
+        );
+      }
 
       return {
         oldThemeId,

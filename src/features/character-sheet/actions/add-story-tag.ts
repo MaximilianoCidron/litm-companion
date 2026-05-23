@@ -7,7 +7,7 @@ import {
   StoryTagSchema,
   TagId,
 } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 
 const STORY_TAG_LIMIT = 40;
 
@@ -32,6 +32,7 @@ export const addStoryTag = withAction(
       );
 
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
       const backpack = (data.backpack as Record<string, unknown>) ?? {};
       const storyTags: StoryTagDoc[] = Array.isArray(backpack.storyTags)
         ? [...(backpack.storyTags as StoryTagDoc[])]

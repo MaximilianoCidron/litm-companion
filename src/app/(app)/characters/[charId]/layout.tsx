@@ -7,6 +7,8 @@ import {
   CampaignProvider,
   CharacterProvider,
   ConnectionBanner,
+  PendingThreatBanner,
+  RetiredBanner,
 } from "@/features/character-sheet";
 import { RollPanel } from "@/features/character-sheet/components/roll-builder";
 import { RollResultDialog } from "@/features/character-sheet/components/roll-builder/result-dialog";
@@ -40,6 +42,8 @@ export default async function CharacterLayout({
     <CharacterProvider initial={initial} role={role}>
       <CampaignProvider initial={campaign} currentUid={user.uid}>
         <div className="flex min-h-full flex-col">
+          <PendingThreatBanner />
+          <RetiredBanner />
           <ConnectionBanner />
           <BookTabBarMobile charId={charId} />
           <div className="flex flex-1 flex-col md:flex-row">

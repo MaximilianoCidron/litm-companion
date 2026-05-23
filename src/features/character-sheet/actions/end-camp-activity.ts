@@ -3,8 +3,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { EndCampActivityInput, type Character } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 import { firestoreToCharacter } from "../lib/serialize";
+import {
+  getAuthorDisplayName,
+  summarizeCampActivity,
+  writeLogEntry,
+} from "../lib/session-log";
 
 interface EndCampActivityResult {
   activity: "rest" | "reflect" | "campAction";
@@ -28,6 +33,7 @@ export const endCampActivity = withAction(
         ctx.uid,
         tx,
       );
+      assertNotRetired(snap.data() ?? {}); // retired-character guard
       const character = firestoreToCharacter(snap);
 
       // 1. Refresh non-burned power tags across all themes.
@@ -96,6 +102,44 @@ export const endCampActivity = withAction(
         backpack: { ...character.backpack, storyTags: updatedStoryTags },
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // Session log: only when the hero is in a campaign.
+      const logCampaignId = character.campaignIds[0] ?? null;
+      if (logCampaignId) {
+        const reflectThemeId =
+          input.activity.kind === "reflect" ? input.activity.themeId : undefined;
+        const reflectThemeName = reflectThemeId
+          ? updatedThemes.find((t) => t.id === reflectThemeId)?.name
+          : undefined;
+        const campActionDescription =
+          input.activity.kind === "campAction"
+            ? input.activity.description
+            : undefined;
+        writeLogEntry(tx, {
+          campaignId: logCampaignId,
+          authorUid: ctx.uid,
+          authorName: getAuthorDisplayName(ctx),
+          subjectCharacterId: input.characterId,
+          subjectCharacterName: character.identity.name,
+          text: summarizeCampActivity(
+            character.identity.name || "A hero",
+            input.activity.kind,
+            reflectThemeName,
+            campActionDescription,
+          ),
+          details: {
+            kind: "campAction",
+            activity: input.activity.kind,
+            themeId: reflectThemeId,
+            themeName: reflectThemeName,
+          },
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        console.debug(
+          "[session-log] camp activity outside campaign — no log entry emitted",
+        );
+      }
 
       return {
         activity: input.activity.kind,

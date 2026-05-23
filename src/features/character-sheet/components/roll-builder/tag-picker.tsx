@@ -289,6 +289,47 @@ export function TagPicker() {
         </>
       ) : null}
 
+      {campaign.status !== "none" && campaign.engagedChallenges.length > 0 ? (
+        <>
+          <GroupHeader>Opposing forces</GroupHeader>
+          {campaign.engagedChallenges.map((challenge) => {
+            const available = challenge.tags.filter((t) => !t.scratched);
+            if (available.length === 0) return null;
+            return (
+              <div key={challenge.id} className="flex flex-col">
+                <div className="px-3 pt-2 font-display text-xs text-rust-text dark:text-rust-text-dark">
+                  {challenge.name}
+                </div>
+                {available.map((tag) => {
+                  const location: TagLocation = {
+                    kind: "challenge",
+                    campaignId: challenge.campaignId,
+                    challengeId: challenge.id,
+                  };
+                  const key = makeTagKey(location, tag.id as TagId);
+                  const isInvoked = invoked.has(key);
+                  return (
+                    <TagRow
+                      key={tag.id}
+                      label={tag.name}
+                      tagId={tag.id as TagId}
+                      location={location}
+                      tagKind="story"
+                      polarity={tag.polarity}
+                      baseValue={tag.polarity === "helpful" ? 1 : -1}
+                      isInvoked={isInvoked}
+                      isBurnSelected={false}
+                      disabled={false}
+                      burnable={false}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </>
+      ) : null}
+
       {character.fellowship.relationships.length > 0 ? (
         <>
           <GroupHeader>Relationships</GroupHeader>

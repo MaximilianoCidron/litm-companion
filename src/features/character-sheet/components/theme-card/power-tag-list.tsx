@@ -5,6 +5,7 @@ import {
   addPowerTag,
   burnTag,
   removePowerTag,
+  unburnTag,
   updateTag,
 } from "../../actions";
 import { PowerTagAdder } from "./power-tag-adder";
@@ -100,6 +101,19 @@ export function PowerTagList({
                     }),
                   );
                 };
+            const onUnburn =
+              disabled || !tag.burned
+                ? undefined
+                : async () => {
+                    await callAction(
+                      unburnTag({
+                        characterId,
+                        themeId,
+                        tagId: tagIdBranded,
+                      }),
+                      { onSuccess: "Tag restored" },
+                    );
+                  };
             return (
               <li key={tag.id}>
                 <TagPill
@@ -110,6 +124,7 @@ export function PowerTagList({
                   onBurn={onBurn}
                   onRename={onRename}
                   onRemove={onRemove}
+                  onUnburn={onUnburn}
                   disabled={disabled}
                 />
               </li>

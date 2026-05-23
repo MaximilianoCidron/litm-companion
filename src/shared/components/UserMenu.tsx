@@ -1,6 +1,8 @@
 "use client";
 import { useTransition } from "react";
 import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
+import { signOut as firebaseSignOut } from "firebase/auth";
+import { getFirebaseAuth } from "@/shared/firebase/client";
 import {
   Avatar,
   AvatarFallback,
@@ -47,6 +49,14 @@ export function UserMenu({ user, signOut }: UserMenuProps) {
 
   const onSignOut = () => {
     startTransition(async () => {
+      // Drop the client SDK session first so onSnapshot listeners stop firing
+      // against rules with the about-to-be-revoked token. Server action then
+      // revokes refresh tokens + clears the httpOnly cookie + redirects.
+      try {
+        await firebaseSignOut(getFirebaseAuth());
+      } catch {
+        // Best-effort; server signOut still runs.
+      }
       await signOut();
     });
   };

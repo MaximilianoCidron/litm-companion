@@ -23,6 +23,8 @@ export function DesktopTrigger() {
   const campaign = useCampaign();
   const liveCampaign =
     campaign.status === "live" ? campaign.campaign : null;
+  const engagedChallenges =
+    campaign.status === "none" ? [] : campaign.engagedChallenges;
   const invokedTags = useInvokedTags();
   const invokedStatuses = useInvokedStatuses();
   const mightModifier = useMightModifier();
@@ -40,13 +42,22 @@ export function DesktopTrigger() {
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
     ).map((id) => ({ statusId: id as StatusId }));
+    const engagedMap = new Map(engagedChallenges.map((e) => [e.id, e]));
     return computePower(
       character,
       liveCampaign,
+      engagedMap,
       { tags, statuses },
       mightModifier,
     ).total;
-  }, [character, liveCampaign, invokedTags, invokedStatuses, mightModifier]);
+  }, [
+    character,
+    liveCampaign,
+    engagedChallenges,
+    invokedTags,
+    invokedStatuses,
+    mightModifier,
+  ]);
 
   const hasSelection =
     invokedTags.size > 0 || invokedStatuses.size > 0 || mightModifier !== 0;

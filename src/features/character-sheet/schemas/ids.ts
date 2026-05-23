@@ -14,6 +14,8 @@ export const InvitationId = z.string().min(1).brand<"InvitationId">();
 export const ChallengeId = z.string().min(1).brand<"ChallengeId">();
 export const ThreatId = z.string().min(1).brand<"ThreatId">();
 export const LimitId = z.string().min(1).brand<"LimitId">();
+export const SessionLogEntryId = z.string().min(1).brand<"SessionLogEntryId">();
+export const PendingThreatId = z.string().min(1).brand<"PendingThreatId">();
 
 export type CharacterId = z.infer<typeof CharacterId>;
 export type ThemeId = z.infer<typeof ThemeId>;
@@ -26,3 +28,5 @@ export type InvitationId = z.infer<typeof InvitationId>;
 export type ChallengeId = z.infer<typeof ChallengeId>;
 export type ThreatId = z.infer<typeof ThreatId>;
 export type LimitId = z.infer<typeof LimitId>;
+export type SessionLogEntryId = z.infer<typeof SessionLogEntryId>;
+export type PendingThreatId = z.infer<typeof PendingThreatId>;

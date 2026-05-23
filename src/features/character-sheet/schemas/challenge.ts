@@ -96,10 +96,23 @@ export const ChallengeSchema = z.object({
   limits: z.array(ChallengeLimitSchema).max(10),
   threats: z.array(ChallengeThreatSchema).max(20),
   notes: z.string().max(2000).default(""),
+  // When true, a denormalized mirror at
+  // `campaigns/{cid}/engagedChallenges/{cid}` exposes name + tags to players.
+  // Legacy docs without the field parse as false.
+  engaged: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
 export type Challenge = z.infer<typeof ChallengeSchema>;
+
+export const EngagedChallengeSchema = z.object({
+  id: ChallengeId,
+  campaignId: CampaignId,
+  name: z.string().min(1).max(80),
+  tags: z.array(ChallengeTagSchema).max(20),
+  updatedAt: z.string().datetime(),
+});
+export type EngagedChallenge = z.infer<typeof EngagedChallengeSchema>;
 
 export const ChallengeSummarySchema = z.object({
   id: ChallengeId,

@@ -23,6 +23,8 @@ export function PowerSummary() {
   const mightModifier = useMightModifier();
   const liveCampaign =
     campaign.status === "live" ? campaign.campaign : null;
+  const engagedChallenges =
+    campaign.status === "none" ? [] : campaign.engagedChallenges;
 
   const breakdown = useMemo(() => {
     const tags: TagInvocationInput[] = Array.from(invokedTags.values()).map(
@@ -35,13 +37,22 @@ export function PowerSummary() {
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
     ).map((id) => ({ statusId: id as StatusId }));
+    const engagedMap = new Map(engagedChallenges.map((e) => [e.id, e]));
     return computePower(
       character,
       liveCampaign,
+      engagedMap,
       { tags, statuses },
       mightModifier,
     );
-  }, [character, liveCampaign, invokedTags, invokedStatuses, mightModifier]);
+  }, [
+    character,
+    liveCampaign,
+    engagedChallenges,
+    invokedTags,
+    invokedStatuses,
+    mightModifier,
+  ]);
 
   const sign = breakdown.total > 0 ? "+" : breakdown.total < 0 ? "" : "+";
   const isEmpty = breakdown.items.length === 0;

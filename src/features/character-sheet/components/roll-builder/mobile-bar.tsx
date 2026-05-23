@@ -24,6 +24,8 @@ export function MobileBar() {
   const setExpanded = useRollBuilder((s) => s.setExpanded);
   const liveCampaign =
     campaign.status === "live" ? campaign.campaign : null;
+  const engagedChallenges =
+    campaign.status === "none" ? [] : campaign.engagedChallenges;
 
   const total = useMemo(() => {
     const tags: TagInvocationInput[] = Array.from(invokedTags.values()).map(
@@ -36,13 +38,22 @@ export function MobileBar() {
     const statuses: StatusInvocationInput[] = Array.from(
       invokedStatuses.values(),
     ).map((id) => ({ statusId: id as StatusId }));
+    const engagedMap = new Map(engagedChallenges.map((e) => [e.id, e]));
     return computePower(
       character,
       liveCampaign,
+      engagedMap,
       { tags, statuses },
       mightModifier,
     ).total;
-  }, [character, liveCampaign, invokedTags, invokedStatuses, mightModifier]);
+  }, [
+    character,
+    liveCampaign,
+    engagedChallenges,
+    invokedTags,
+    invokedStatuses,
+    mightModifier,
+  ]);
 
   return (
     <button

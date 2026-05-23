@@ -3,14 +3,16 @@ import {
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signOut,
   type UserCredential,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/shared/firebase/client";
 
 /**
  * Exchange a Firebase ID token for an httpOnly session cookie set by the server.
- * On success the browser holds no token; subsequent requests rely on the cookie.
+ * The session cookie is the source of truth for Server Actions; the Firebase
+ * client SDK session is kept alive so client-side `onSnapshot` listeners can
+ * authenticate against Firestore Security Rules (rules see `request.auth`,
+ * which is only populated by the client SDK — the cookie is server-only).
  */
 async function exchangeIdTokenForSessionCookie(
   credential: UserCredential,
@@ -25,8 +27,10 @@ async function exchangeIdTokenForSessionCookie(
     const body = await res.json().catch(() => ({ error: "Login failed" }));
     throw new Error(body.error ?? "Login failed");
   }
-  // Drop the Firebase client-side session — the cookie is now the source of truth.
-  await signOut(getFirebaseAuth());
+  // Keep the client SDK signed in so client listeners (`onSnapshot`) can read
+  // per Firestore Security Rules. The httpOnly cookie still gates Server Actions.
+  // `getFirebaseAuth()` reference retained for code-level intent.
+  void getFirebaseAuth();
 }
 
 export async function signInWithPassword(

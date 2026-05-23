@@ -15,6 +15,7 @@ import { DesktopTrigger } from "./desktop-trigger";
 import { MightSelector } from "./might-selector";
 import { MobileBar } from "./mobile-bar";
 import { PowerSummary } from "./power-summary";
+import { ReactingIndicator } from "./reacting-indicator";
 import { ReactionToggle } from "./reaction-toggle";
 import { RollButton } from "./roll-button";
 import { StatusPicker } from "./status-picker";
@@ -23,6 +24,7 @@ import { TagPicker } from "./tag-picker";
 function PanelBody() {
   return (
     <>
+      <ReactingIndicator />
       <ReactionToggle />
       <Separator />
       <TagPicker />

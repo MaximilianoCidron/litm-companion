@@ -13,6 +13,12 @@ import {
   firestoreToChallenge,
   firestoreToCharacter,
 } from "../lib/serialize";
+import {
+  getAuthorDisplayName,
+  summarizeThreatDelivery,
+  writeLogEntry,
+  type ConsequenceLogDetails,
+} from "../lib/session-log";
 
 // NOTE: this action intentionally duplicates the apply logic from
 // applyStatus / markTrack / updateTag instead of calling them, to
@@ -201,6 +207,42 @@ export const deliverThreat = withAction(
       // Bump challenge updatedAt so the list re-orders.
       tx.update(challengeRef, {
         updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Session log: subject is the target hero in the challenge's campaign.
+      const consequenceDetails: ConsequenceLogDetails = {};
+      if (template.kind === "applyStatus") {
+        consequenceDetails.statusName = template.statusName;
+        consequenceDetails.tier = template.tier;
+        consequenceDetails.polarity = template.polarity;
+      } else if (template.kind === "markTrack") {
+        consequenceDetails.track = template.track;
+        consequenceDetails.delta = template.delta;
+      } else if (template.kind === "scratchTag") {
+        consequenceDetails.tagName =
+          (details.tagName as string | undefined) ?? "tag";
+      } else {
+        consequenceDetails.customDescription = template.description;
+      }
+      const targetName = character.identity.name || "A hero";
+      const logText = summarizeThreatDelivery(
+        targetName,
+        template.kind,
+        consequenceDetails,
+      );
+      writeLogEntry(tx, {
+        campaignId: challenge.campaignId,
+        authorUid: ctx.uid,
+        authorName: getAuthorDisplayName(ctx),
+        subjectCharacterId: input.targetCharacterId,
+        subjectCharacterName: character.identity.name,
+        text: logText,
+        details: {
+          kind: "deliverThreat",
+          challengeId: input.challengeId,
+          consequenceKind: template.kind,
+          consequenceSummary: logText,
+        },
       });
 
       return {

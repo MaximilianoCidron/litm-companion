@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { MarkTrackInput } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 
 interface MarkTrackResult {
   themeId: string;
@@ -32,6 +32,7 @@ export const markTrack = withAction(
       );
 
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
       const themes = Array.isArray(data.themes) ? [...data.themes] : [];
       const themeIdx = themes.findIndex(
         (t: { id: string }) => t.id === input.themeId,

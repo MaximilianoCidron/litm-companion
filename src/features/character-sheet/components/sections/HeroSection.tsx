@@ -2,17 +2,17 @@
 import { Card, Skeleton, Track } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
 import { CampaignBadge } from "../campaign/campaign-badge";
-import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment-badge";
+import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment";
 import { MakeCampButton } from "../camp/make-camp-button";
 
 export function HeroSection() {
-  const { character, role } = useCharacter();
+  const { character, role, canEdit, isRetired } = useCharacter();
   const { identity, progression, fellowship } = character;
   const hasRelationships = fellowship.relationships.length > 0;
   const hasQuintessences = progression.quintessences.length > 0;
-  const canEdit = role === "owner" || role === "gm";
+  // Owner-only — GM can't trigger another player's Moment of Fulfillment.
   const showMomentOfFulfillment =
-    progression.promise === 5 && canEdit;
+    progression.promise === 5 && role === "owner" && !isRetired;
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">

@@ -68,6 +68,48 @@ export async function requireCharacterAccess(
 }
 
 /**
+ * Authorize an OWNER-only character mutation — the player who owns the
+ * character. The GM does NOT pass this gate. Use for character-defining
+ * operations like Moment-of-Fulfillment resolution where the player must
+ * be the sole decision-maker.
+ */
+export async function requireCharacterOwnership(
+  characterId: string,
+  uid: string,
+  tx?: Transaction,
+): Promise<{ snap: DocumentSnapshot<DocumentData> }> {
+  const db = getAdminDb();
+  const ref = db.collection("characters").doc(characterId);
+  const snap = tx ? await tx.get(ref) : await ref.get();
+  if (!snap.exists) {
+    throw new ActionError("NOT_FOUND", "Character not found.");
+  }
+  const data = snap.data() ?? {};
+  if (data.userId !== uid) {
+    throw new ActionError(
+      "FORBIDDEN",
+      "Only the hero's player can do that.",
+    );
+  }
+  return { snap };
+}
+
+/**
+ * Cheap field-level retired-character guard. Throws `INVALID_STATE` when the
+ * character is retired so callers don't have to parse the full document.
+ * Legacy docs without a `status` field default to "active" — same semantics
+ * as `CharacterSchema.status.default("active")`.
+ */
+export function assertNotRetired(data: DocumentData): void {
+  if (data.status === "retired") {
+    throw new ActionError(
+      "INVALID_STATE",
+      "This hero has retired — their sheet is read-only.",
+    );
+  }
+}
+
+/**
  * Authorize a GM-only campaign read/write and return the doc snapshot. Use in
  * every action that mutates campaign state (rename, fellowship edits,
  * invitations, kicks, transfers).

@@ -6,6 +6,8 @@ import {
   FellowshipRelationshipId,
   InvitationId,
   LimitId,
+  PendingThreatId,
+  SessionLogEntryId,
   StatusId,
   TagId,
   ThemeId,
@@ -63,6 +65,50 @@ export const BurnTagInput = z.object({
   tagId: TagId,
 });
 export type BurnTagInput = z.infer<typeof BurnTagInput>;
+
+export const UnburnTagInput = z.object({
+  characterId: CharacterId,
+  themeId: ThemeId,
+  tagId: TagId,
+});
+export type UnburnTagInput = z.infer<typeof UnburnTagInput>;
+
+export const ResolveMomentOfFulfillmentInput = z.object({
+  characterId: CharacterId,
+  choice: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("retire"),
+      description: z.string().max(500).default(""),
+    }),
+    z.object({
+      kind: z.literal("reforge"),
+      newName: z.string().min(1).max(60).optional(),
+      newConcept: z.string().max(120).optional(),
+      description: z.string().max(500).default(""),
+    }),
+    z.object({
+      kind: z.literal("gainQuintessence"),
+      text: z.string().min(1).max(120),
+      description: z.string().max(500).default(""),
+    }),
+    z.object({
+      kind: z.literal("shakeWorld"),
+      description: z.string().min(1).max(500),
+    }),
+    z.object({
+      kind: z.literal("speakWordsEternal"),
+      description: z.string().min(1).max(500),
+    }),
+    z.object({
+      kind: z.literal("unearthTruths"),
+      description: z.string().min(1).max(500),
+    }),
+  ]),
+  restoreBurnedTags: z.boolean().default(true),
+});
+export type ResolveMomentOfFulfillmentInput = z.infer<
+  typeof ResolveMomentOfFulfillmentInput
+>;
 
 export const ApplyStatusInput = z.object({
   characterId: CharacterId,
@@ -201,6 +247,15 @@ export const CommitRollInput = z.object({
     statuses: z.array(StatusInvocationInputSchema).max(10),
   }),
   mightModifier: MightModifierSchema,
+  // When this roll resolves a pending threat, the link is captured here.
+  // commit-roll validates: requires isReaction === true AND the caller is
+  // the targetUid of the pending threat.
+  reactingTo: z
+    .object({
+      pendingThreatId: PendingThreatId,
+      campaignId: CampaignId,
+    })
+    .optional(),
 });
 export type CommitRollInput = z.infer<typeof CommitRollInput>;
 
@@ -412,6 +467,9 @@ export const MutateChallengeInput = z.object({
       description: z.string().min(1).max(280),
       consequenceTemplate: ConsequenceTemplateSchema,
     }),
+
+    z.object({ kind: z.literal("setEngaged"), engaged: z.boolean() }),
+    z.object({ kind: z.literal("refreshTags") }),
   ]),
 });
 export type MutateChallengeInput = z.infer<typeof MutateChallengeInput>;
@@ -434,6 +492,27 @@ export const DeliverThreatInput = z.object({
     .optional(),
 });
 export type DeliverThreatInput = z.infer<typeof DeliverThreatInput>;
+
+export const AddSessionLogEntryInput = z.object({
+  campaignId: CampaignId,
+  text: z.string().min(1).max(2000),
+  subjectCharacterId: CharacterId.nullable().default(null),
+});
+export type AddSessionLogEntryInput = z.infer<typeof AddSessionLogEntryInput>;
+
+export const DeleteSessionLogEntryInput = z.object({
+  campaignId: CampaignId,
+  entryId: SessionLogEntryId,
+});
+export type DeleteSessionLogEntryInput = z.infer<
+  typeof DeleteSessionLogEntryInput
+>;
+
+export const ToggleSessionLogPinInput = z.object({
+  campaignId: CampaignId,
+  entryId: SessionLogEntryId,
+});
+export type ToggleSessionLogPinInput = z.infer<typeof ToggleSessionLogPinInput>;
 
 export const EndCampActivityInput = z.object({
   characterId: CharacterId,
@@ -471,3 +550,44 @@ export const MutateRelationshipsInput = z.object({
   ]),
 });
 export type MutateRelationshipsInput = z.infer<typeof MutateRelationshipsInput>;
+
+export const OfferReactionForThreatInput = z.object({
+  challengeId: ChallengeId,
+  campaignId: CampaignId,
+  threatId: ThreatId,
+  targetCharacterId: CharacterId,
+  scratchTarget: z
+    .object({
+      location: TagLocationSchema,
+      tagId: TagId,
+    })
+    .optional(),
+});
+export type OfferReactionForThreatInput = z.infer<
+  typeof OfferReactionForThreatInput
+>;
+
+export const ResolvePendingThreatInput = z.object({
+  pendingThreatId: PendingThreatId,
+  campaignId: CampaignId,
+  reduction: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("none") }),
+    z.object({
+      kind: z.literal("tierReduction"),
+      powerSpent: z.number().int().min(1).max(6),
+    }),
+    z.object({
+      kind: z.literal("tagPreservation"),
+      preserve: z.boolean(),
+    }),
+  ]),
+});
+export type ResolvePendingThreatInput = z.infer<
+  typeof ResolvePendingThreatInput
+>;
+
+export const CancelPendingThreatInput = z.object({
+  pendingThreatId: PendingThreatId,
+  campaignId: CampaignId,
+});
+export type CancelPendingThreatInput = z.infer<typeof CancelPendingThreatInput>;

@@ -50,6 +50,36 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.gmUid == request.auth.uid;
         allow write: if false;
       }
+
+      // sessionLog subcollection — any campaign member reads; writes via
+      // Admin SDK only (auto-emitted by host actions + manual annotations).
+      match /sessionLog/{entryId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/campaigns/$(campaignId)).data.gmUid == request.auth.uid
+          || (request.auth.uid in get(/databases/$(database)/documents/campaigns/$(campaignId)).data.playerUids)
+        );
+        allow write: if false;
+      }
+
+      // engagedChallenges mirror — denormalized player-visible subset of an
+      // engaged challenge. Any member reads; writes via Admin SDK only.
+      match /engagedChallenges/{challengeId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/campaigns/$(campaignId)).data.gmUid == request.auth.uid
+          || (request.auth.uid in get(/databases/$(database)/documents/campaigns/$(campaignId)).data.playerUids)
+        );
+        allow write: if false;
+      }
+
+      // pendingThreats — reaction state machine. Any member reads (UI
+      // branches on role); writes via Admin SDK only.
+      match /pendingThreats/{ptId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/campaigns/$(campaignId)).data.gmUid == request.auth.uid
+          || (request.auth.uid in get(/databases/$(database)/documents/campaigns/$(campaignId)).data.playerUids)
+        );
+        allow write: if false;
+      }
     }
 
     // ------------------------------------------------------------------

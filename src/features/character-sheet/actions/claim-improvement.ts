@@ -8,7 +8,7 @@ import {
   TagId,
   type ClaimImprovementInput as ClaimImprovementInputT,
 } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 
 interface ClaimImprovementResult {
   themeId: string;
@@ -31,6 +31,7 @@ export const claimImprovement = withAction(
       );
 
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
       const themes = Array.isArray(data.themes)
         ? [...(data.themes as Record<string, unknown>[])]
         : [];

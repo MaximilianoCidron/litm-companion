@@ -250,22 +250,36 @@ export function RollResultDialog() {
                 </ul>
               )}
 
-              <div
-                role="status"
-                aria-live="polite"
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                  theme.className,
-                )}
-              >
-                <theme.icon className="h-5 w-5" aria-hidden="true" />
-                <span className="font-display text-sm uppercase tracking-wider">
-                  {tier
-                    ? theme.label
-                    : `Power earned: ${roll.total}`}
-                </span>
-                <span className="ml-1">{theme.tagline}</span>
-              </div>
+              {roll.reactingTo ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-ember/10 px-3 py-3 text-sm dark:bg-ember/5"
+                >
+                  <Shield
+                    className="h-5 w-5 text-ember-text-light dark:text-ember-text-dark"
+                    aria-hidden="true"
+                  />
+                  <span className="font-display text-sm uppercase tracking-wider text-ember-text-light dark:text-ember-text-dark">
+                    Reaction · {roll.power} Power
+                  </span>
+                </div>
+              ) : (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+                    theme.className,
+                  )}
+                >
+                  <theme.icon className="h-5 w-5" aria-hidden="true" />
+                  <span className="font-display text-sm uppercase tracking-wider">
+                    {tier ? theme.label : `Power earned: ${roll.total}`}
+                  </span>
+                  <span className="ml-1">{theme.tagline}</span>
+                </div>
+              )}
             </>
           )}
         </DialogBody>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Send } from "lucide-react";
+import { Send, ShieldCheck } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -15,7 +15,7 @@ import {
 } from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import { cn } from "@/shared/lib/cn";
-import { deliverThreat } from "../../actions";
+import { deliverThreat, offerReactionForThreat } from "../../actions";
 import { useChallenge } from "../challenge-provider";
 import { useRoster } from "../RosterProvider";
 import type {
@@ -75,7 +75,9 @@ export function DeliverThreatDialog({ threat }: DeliverThreatDialogProps) {
   };
 
   useEffect(() => {
-    if (!open) reset();
+    if (open) return;
+    const t = setTimeout(() => reset(), 0);
+    return () => clearTimeout(t);
   }, [open]);
 
   const advanceFromTarget = () => {
@@ -88,6 +90,9 @@ export function DeliverThreatDialog({ threat }: DeliverThreatDialogProps) {
     if (template.kind === "scratchTag" && !scratchTarget) return;
     setStep("confirm");
   };
+
+  const isReactionEligible =
+    template.kind === "applyStatus" || template.kind === "scratchTag";
 
   const deliver = () => {
     if (!targetCharacterId) return;
@@ -122,6 +127,36 @@ export function DeliverThreatDialog({ threat }: DeliverThreatDialogProps) {
             description: String(result.details.description ?? ""),
           });
         }
+        setOpen(false);
+        reset();
+      }
+    });
+  };
+
+  const offer = () => {
+    if (!targetCharacterId) return;
+    if (template.kind === "scratchTag" && !scratchTarget) return;
+    if (!isReactionEligible) return;
+
+    startTransition(async () => {
+      const result = await callAction(
+        offerReactionForThreat({
+          challengeId: challenge.id,
+          campaignId: challenge.campaignId,
+          threatId: threat.id,
+          targetCharacterId,
+          ...(template.kind === "scratchTag" && scratchTarget
+            ? {
+                scratchTarget: {
+                  location: scratchTarget.location,
+                  tagId: scratchTarget.tagId,
+                },
+              }
+            : {}),
+        }),
+        { onSuccess: "Reaction offered" },
+      );
+      if (result) {
         setOpen(false);
         reset();
       }
@@ -244,7 +279,23 @@ export function DeliverThreatDialog({ threat }: DeliverThreatDialogProps) {
               Next
             </Button>
           ) : null}
-          {step === "confirm" ? (
+          {step === "confirm" && isReactionEligible ? (
+            <div className="flex flex-col items-end gap-1">
+              <Button type="button" disabled={pending} onClick={offer}>
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                Offer Reaction
+              </Button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={deliver}
+                className="text-xs text-ink-muted underline-offset-2 hover:underline dark:text-parchment-muted"
+              >
+                Skip Reaction — deliver immediately
+              </button>
+            </div>
+          ) : null}
+          {step === "confirm" && !isReactionEligible ? (
             <Button type="button" disabled={pending} onClick={deliver}>
               <Send className="h-3.5 w-3.5" aria-hidden="true" />
               Deliver
@@ -493,8 +544,8 @@ function ConfirmStep({
     <div className="flex flex-col gap-2">
       <p className="text-sm text-ink-base dark:text-parchment-base">{summary}</p>
       <p className="text-xs italic text-ink-subtle dark:text-parchment-subtle">
-        Threat: "{threatDescription.slice(0, 80)}
-        {threatDescription.length > 80 ? "…" : ""}"
+        Threat: &ldquo;{threatDescription.slice(0, 80)}
+        {threatDescription.length > 80 ? "…" : ""}&rdquo;
       </p>
     </div>
   );

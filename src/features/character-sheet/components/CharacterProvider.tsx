@@ -9,6 +9,9 @@ export type CharacterRole = "owner" | "gm";
 interface CharacterContextValue {
   character: Character;
   role: CharacterRole;
+  /** Role-based AND character is active. Sole source of truth for edit gating. */
+  canEdit: boolean;
+  isRetired: boolean;
   error: Error | null;
 }
 
@@ -33,8 +36,13 @@ export function CharacterProvider({
     useRollBuilder.getState().reset();
   }, [initial.id]);
 
+  const isRetired = character.status === "retired";
+  const canEdit = (role === "owner" || role === "gm") && !isRetired;
+
   return (
-    <CharacterContext.Provider value={{ character, role, error }}>
+    <CharacterContext.Provider
+      value={{ character, role, canEdit, isRetired, error }}
+    >
       {children}
     </CharacterContext.Provider>
   );

@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import { RemoveStoryTagInput } from "../schemas";
-import { requireCharacterAccess } from "../lib/access";
+import { assertNotRetired, requireCharacterAccess } from "../lib/access";
 
 type StoryTagDoc = {
   id: string;
@@ -26,6 +26,7 @@ export const removeStoryTag = withAction(
       );
 
       const data = access.snap.data() ?? {};
+      assertNotRetired(data); // retired-character guard
       const backpack = (data.backpack as Record<string, unknown>) ?? {};
       const storyTags: StoryTagDoc[] = Array.isArray(backpack.storyTags)
         ? (backpack.storyTags as StoryTagDoc[])
