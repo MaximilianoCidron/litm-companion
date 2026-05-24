@@ -9,6 +9,7 @@ import {
   RollRecordSchema,
   SessionLogEntrySchema,
   SessionSchema,
+  UserSettingsSchema,
   type Campaign,
   type Challenge,
   type Character,
@@ -19,6 +20,7 @@ import {
   type RollRecord,
   type Session,
   type SessionLogEntry,
+  type UserSettings,
 } from "../schemas";
 
 type TimestampLike = { toDate(): Date };
@@ -250,6 +252,23 @@ export function firestoreToPendingThreat(snap: SnapshotLike): PendingThreat {
     id: snap.id,
     createdAt: toIso(data.createdAt),
     resolvedAt: data.resolvedAt ? toIso(data.resolvedAt) : null,
+  });
+}
+
+/**
+ * Convert a Firestore userSettings snapshot (`userSettings/{uid}`) to the
+ * validated wire shape. Returns null when the doc doesn't exist — caller
+ * supplies defaults.
+ */
+export function firestoreToUserSettings(
+  snap: SnapshotLike,
+): UserSettings | null {
+  const data = snap.data();
+  if (!data) return null;
+  return UserSettingsSchema.parse({
+    ...data,
+    uid: snap.id,
+    updatedAt: data.updatedAt ? toIso(data.updatedAt) : null,
   });
 }
 

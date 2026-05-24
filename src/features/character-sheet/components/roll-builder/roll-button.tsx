@@ -1,10 +1,11 @@
 "use client";
 import { useTransition } from "react";
 import { Dices, Loader2, Shield, Target } from "lucide-react";
-import { Button } from "@/shared/ui";
+import { Button, ConfirmDialog } from "@/shared/ui";
 import { useActionWithToast } from "@/shared/hooks/use-action-with-toast";
 import { commitRoll } from "../../actions";
 import { useCharacter } from "../CharacterProvider";
+import { useUserSettings } from "../UserSettingsProvider";
 import {
   useInvokedStatuses,
   useInvokedTags,
@@ -21,6 +22,27 @@ import type {
   TagInvocationInput,
 } from "../../schemas";
 
+function buildRollSummary({
+  tagCount,
+  statusCount,
+  mightModifier,
+}: {
+  tagCount: number;
+  statusCount: number;
+  mightModifier: number;
+}): string {
+  const parts: string[] = [];
+  if (tagCount > 0) parts.push(`${tagCount} tag${tagCount === 1 ? "" : "s"}`);
+  if (statusCount > 0)
+    parts.push(`${statusCount} status${statusCount === 1 ? "" : "es"}`);
+  if (mightModifier !== 0) {
+    parts.push(
+      `${mightModifier > 0 ? "+" : ""}${mightModifier} might`,
+    );
+  }
+  return parts.length > 0 ? parts.join(" · ") : "no selections";
+}
+
 export function RollButton() {
   const { character } = useCharacter();
   const invokedTags = useInvokedTags();
@@ -28,6 +50,7 @@ export function RollButton() {
   const mightModifier = useMightModifier();
   const isReaction = useIsReaction();
   const isDetailedAction = useIsDetailedAction();
+  const confirmBeforeRolling = useUserSettings().confirmBeforeRolling;
   const openResultDialog = useRollBuilder((s) => s.openResultDialog);
   const resetSelectionOnly = useRollBuilder((s) => s.resetSelectionOnly);
   const callAction = useActionWithToast();
@@ -39,64 +62,67 @@ export function RollButton() {
     mightModifier === 0;
   const disabled = pending || nothing;
 
-  const onClick = () => {
-    if (pending) return;
-    startTransition(async () => {
-      const tags: TagInvocationInput[] = Array.from(invokedTags.values()).map(
-        (entry) => ({
-          tagId: entry.tagId,
+  const doCommit = () =>
+    new Promise<void>((resolve) => {
+      startTransition(async () => {
+        const tags: TagInvocationInput[] = Array.from(invokedTags.values()).map(
+          (entry) => ({
+            tagId: entry.tagId,
+            location: entry.location,
+            burn: entry.burn,
+          }),
+        );
+        const statuses: StatusInvocationInput[] = Array.from(
+          invokedStatuses.values(),
+        ).map((entry) => ({
+          statusId: entry.statusId,
           location: entry.location,
-          burn: entry.burn,
-        }),
-      );
-      const statuses: StatusInvocationInput[] = Array.from(
-        invokedStatuses.values(),
-      ).map((entry) => ({ statusId: entry.statusId, location: entry.location }));
+        }));
 
-      const reactingToPendingThreatId =
-        useRollBuilder.getState().reactingToPendingThreatId;
-      const reactingToCampaignId =
-        useRollBuilder.getState().reactingToCampaignId;
-      const reactingTo =
-        reactingToPendingThreatId && reactingToCampaignId
-          ? {
-              pendingThreatId: reactingToPendingThreatId as PendingThreatId,
-              campaignId: reactingToCampaignId as CampaignId,
-            }
-          : undefined;
+        const reactingToPendingThreatId =
+          useRollBuilder.getState().reactingToPendingThreatId;
+        const reactingToCampaignId =
+          useRollBuilder.getState().reactingToCampaignId;
+        const reactingTo =
+          reactingToPendingThreatId && reactingToCampaignId
+            ? {
+                pendingThreatId: reactingToPendingThreatId as PendingThreatId,
+                campaignId: reactingToCampaignId as CampaignId,
+              }
+            : undefined;
 
-      const detailedChallengeId =
-        useRollBuilder.getState().detailedActionChallengeId;
-      const detailedCampaignId =
-        useRollBuilder.getState().detailedActionCampaignId;
-      const detailedActionTarget =
-        isDetailedAction && detailedChallengeId && detailedCampaignId
-          ? {
-              challengeId: detailedChallengeId as ChallengeId,
-              campaignId: detailedCampaignId as CampaignId,
-            }
-          : null;
+        const detailedChallengeId =
+          useRollBuilder.getState().detailedActionChallengeId;
+        const detailedCampaignId =
+          useRollBuilder.getState().detailedActionCampaignId;
+        const detailedActionTarget =
+          isDetailedAction && detailedChallengeId && detailedCampaignId
+            ? {
+                challengeId: detailedChallengeId as ChallengeId,
+                campaignId: detailedCampaignId as CampaignId,
+              }
+            : null;
 
-      const result = await callAction(
-        commitRoll({
-          characterId: character.id,
-          isReaction,
-          invocations: { tags, statuses },
-          mightModifier,
-          isDetailedAction,
-          detailedActionTarget,
-          ...(reactingTo ? { reactingTo } : {}),
-        }),
-      );
-      if (result) {
-        openResultDialog(result.rollId);
-        resetSelectionOnly();
-        // clear reactingTo*/detailedAction* alongside selection cleanup
-        useRollBuilder.getState().clearReaction();
-        useRollBuilder.getState().clearDetailedAction();
-      }
+        const result = await callAction(
+          commitRoll({
+            characterId: character.id,
+            isReaction,
+            invocations: { tags, statuses },
+            mightModifier,
+            isDetailedAction,
+            detailedActionTarget,
+            ...(reactingTo ? { reactingTo } : {}),
+          }),
+        );
+        if (result) {
+          openResultDialog(result.rollId);
+          resetSelectionOnly();
+          useRollBuilder.getState().clearReaction();
+          useRollBuilder.getState().clearDetailedAction();
+        }
+        resolve();
+      });
     });
-  };
 
   const label = pending
     ? "Rolling…"
@@ -116,17 +142,38 @@ export function RollButton() {
         ? Target
         : Dices;
 
-  return (
+  const button = (
     <Button
       type="button"
       variant="primary"
       size="lg"
       fullWidth
       disabled={disabled}
-      onClick={onClick}
+      onClick={confirmBeforeRolling ? undefined : () => void doCommit()}
     >
-      <Icon className={pending ? "h-5 w-5 animate-spin" : "h-5 w-5"} aria-hidden="true" />
+      <Icon
+        className={pending ? "h-5 w-5 animate-spin" : "h-5 w-5"}
+        aria-hidden="true"
+      />
       {label}
     </Button>
+  );
+
+  if (!confirmBeforeRolling) return button;
+
+  const summary = buildRollSummary({
+    tagCount: invokedTags.size,
+    statusCount: invokedStatuses.size,
+    mightModifier,
+  });
+
+  return (
+    <ConfirmDialog
+      trigger={button}
+      title="Roll with this selection?"
+      description={summary}
+      confirmLabel="Roll"
+      onConfirm={doCommit}
+    />
   );
 }

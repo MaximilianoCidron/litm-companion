@@ -21,6 +21,8 @@ import {
   type RollRecord,
   type Session,
   type SessionLogEntry,
+  type UserSettings,
+  defaultSettingsFor,
 } from "../schemas";
 import {
   requireCampaignGm,
@@ -37,6 +39,7 @@ import {
   firestoreToRollRecord,
   firestoreToSession,
   firestoreToSessionLogEntry,
+  firestoreToUserSettings,
 } from "./serialize";
 
 const FIRESTORE_IN_CAP = 30;
@@ -94,11 +97,18 @@ export async function getMyCharacters(
   return docs.map((doc) => {
     const data = doc.data();
     const firstCampId = ((data.campaignIds ?? []) as string[])[0];
+    // Prefer the new structured avatar thumb; fall back to legacy
+    // identity.avatarUrl so pre-feature characters still render.
+    const avatarThumb =
+      ((data.avatar as { thumbUrl?: string } | null | undefined)
+        ?.thumbUrl as string | undefined) ?? null;
+    const legacyAvatar =
+      (data.identity?.avatarUrl as string | null | undefined) ?? null;
     return CharacterSummarySchema.parse({
       id: doc.id,
       name: (data.identity?.name as string | undefined) ?? "",
       concept: (data.identity?.concept as string | undefined) ?? "",
-      avatarUrl: (data.identity?.avatarUrl as string | null | undefined) ?? null,
+      avatarUrl: avatarThumb ?? legacyAvatar,
       campaignName: firstCampId ? (campaignNames.get(firstCampId) ?? null) : null,
       promise: (data.progression?.promise as number | undefined) ?? 0,
       status: (data.status as "active" | "retired" | undefined) ?? "active",
@@ -731,4 +741,209 @@ export async function getCharacterWithCampaign(
     }
     throw err;
   }
+}
+
+/**
+ * Fetch the caller's user settings server-side, falling back to defaults when
+ * no doc exists yet. Use in Server Components that need to gate behavior on
+ * settings (e.g., dashboard's showRetiredCharacters default).
+ */
+export async function getUserSettingsServerSide(
+  uid: string,
+): Promise<UserSettings> {
+  const db = getAdminDb();
+  const snap = await db.collection("userSettings").doc(uid).get();
+  return firestoreToUserSettings(snap) ?? defaultSettingsFor(uid);
+}
+
+export interface CampaignCleanupPreview {
+  characterCount: number;
+  retiredCharacterCount: number;
+  powerTagsScratched: number;
+  powerTagsBurned: number;
+  hinderingStatuses: number;
+  nonPreservedStoryTags: number;
+  fellowshipTagsScratched: number;
+  engagedChallengeTagsScratched: number;
+}
+
+/**
+ * GM-only. Aggregate counts driving the BulkCleanupDialog preview. Retired
+ * heroes are excluded from the per-character counts (cleanup skips them).
+ */
+export async function getCampaignCleanupPreview(
+  campaignId: string,
+  uid: string,
+): Promise<CampaignCleanupPreview> {
+  await requireCampaignGm(campaignId, uid);
+  const db = getAdminDb();
+
+  const campSnap = await db.collection("campaigns").doc(campaignId).get();
+  if (!campSnap.exists) {
+    throw new ActionError("NOT_FOUND", "Campaign not found.");
+  }
+  const campaign = firestoreToCampaign(campSnap);
+
+  const characterIds = campaign.roster.map((r) => r.characterId);
+  const charSnaps = await Promise.all(
+    characterIds.map((id) => db.collection("characters").doc(id).get()),
+  );
+
+  let powerTagsScratched = 0;
+  let powerTagsBurned = 0;
+  let hinderingStatuses = 0;
+  let nonPreservedStoryTags = 0;
+  let activeCharacterCount = 0;
+  let retiredCharacterCount = 0;
+
+  for (const snap of charSnaps) {
+    if (!snap.exists) continue;
+    let character: Character;
+    try {
+      character = firestoreToCharacter(snap);
+    } catch (err) {
+      console.warn("[cleanup-preview] character parse", snap.id, err);
+      continue;
+    }
+    if (character.status === "retired") {
+      retiredCharacterCount += 1;
+      continue;
+    }
+    activeCharacterCount += 1;
+    for (const theme of character.themes) {
+      for (const tag of theme.powerTags) {
+        if (tag.burned) powerTagsBurned += 1;
+        else if (tag.scratched) powerTagsScratched += 1;
+      }
+    }
+    hinderingStatuses += character.statuses.filter(
+      (s) => s.polarity === "hindering",
+    ).length;
+    nonPreservedStoryTags += character.backpack.storyTags.filter(
+      (t) => !t.preserved,
+    ).length;
+  }
+
+  const fellowshipTagsScratched = campaign.fellowship.powerTags.filter(
+    (t) => t.scratched,
+  ).length;
+
+  const engagedSnap = await db
+    .collection("campaigns")
+    .doc(campaignId)
+    .collection("engagedChallenges")
+    .get();
+  let engagedChallengeTagsScratched = 0;
+  for (const doc of engagedSnap.docs) {
+    const data = doc.data();
+    const tags = (data.tags ?? []) as Array<{ scratched?: boolean }>;
+    engagedChallengeTagsScratched += tags.filter(
+      (t) => t.scratched === true,
+    ).length;
+  }
+
+  return {
+    characterCount: activeCharacterCount,
+    retiredCharacterCount,
+    powerTagsScratched,
+    powerTagsBurned,
+    hinderingStatuses,
+    nonPreservedStoryTags,
+    fellowshipTagsScratched,
+    engagedChallengeTagsScratched,
+  };
+}
+
+export interface PendingAllocation {
+  rollId: string;
+  characterId: CharacterSummary["id"];
+  characterName: string;
+  ownerUid: string;
+  challengeId: ChallengeSummary["id"];
+  challengeName: string;
+  campaignId: CampaignSummary["id"];
+  power: number;
+  createdAt: string;
+}
+
+/**
+ * GM-only. Collection-group query over `rolls` for Detailed actions in this
+ * campaign that haven't had their Power allocated yet. Used by the campaign
+ * page's PendingAllocationsPanel so the GM can act on behalf of offline
+ * players. Throws FORBIDDEN when the caller isn't the GM.
+ */
+export async function getPendingAllocations(
+  campaignId: string,
+  uid: string,
+): Promise<PendingAllocation[]> {
+  await requireCampaignGm(campaignId, uid);
+  const db = getAdminDb();
+
+  const rollSnaps = await db
+    .collectionGroup("rolls")
+    .where("isDetailedAction", "==", true)
+    .where("limitAllocationApplied", "==", false)
+    .where("detailedActionTarget.campaignId", "==", campaignId)
+    .orderBy("createdAt", "desc")
+    .limit(30)
+    .get();
+
+  interface RollEntry {
+    roll: RollRecord;
+    characterId: string;
+  }
+  const entries: RollEntry[] = [];
+  const uniqueCharacterIds = new Set<string>();
+
+  for (const doc of rollSnaps.docs) {
+    try {
+      const roll = firestoreToRollRecord(doc);
+      if (roll.power <= 0) continue;
+      if (!roll.detailedActionTarget) continue;
+      const charRef = doc.ref.parent.parent;
+      if (!charRef) continue;
+      entries.push({ roll, characterId: charRef.id });
+      uniqueCharacterIds.add(charRef.id);
+    } catch (err) {
+      console.warn("[pending-allocations] skip malformed roll", doc.id, err);
+    }
+  }
+
+  const charSnaps = await Promise.all(
+    Array.from(uniqueCharacterIds).map((id) =>
+      db.collection("characters").doc(id).get(),
+    ),
+  );
+  const characters = new Map<string, Character>();
+  for (const snap of charSnaps) {
+    if (!snap.exists) continue;
+    try {
+      characters.set(snap.id, firestoreToCharacter(snap));
+    } catch (err) {
+      console.warn(
+        "[pending-allocations] character parse",
+        snap.id,
+        err,
+      );
+    }
+  }
+
+  const result: PendingAllocation[] = [];
+  for (const { roll, characterId } of entries) {
+    const character = characters.get(characterId);
+    if (!character) continue;
+    if (!roll.detailedActionTarget) continue;
+    result.push({
+      rollId: roll.id,
+      characterId: character.id,
+      characterName: character.identity.name,
+      ownerUid: character.userId,
+      challengeId: roll.detailedActionTarget.challengeId,
+      challengeName: roll.detailedActionTarget.challengeName,
+      campaignId: roll.detailedActionTarget.campaignId,
+      power: roll.power,
+      createdAt: roll.createdAt,
+    });
+  }
+  return result;
 }

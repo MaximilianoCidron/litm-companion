@@ -56,6 +56,16 @@
         { "fieldPath": "sessionId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "rolls",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "isDetailedAction", "order": "ASCENDING" },
+        { "fieldPath": "limitAllocationApplied", "order": "ASCENDING" },
+        { "fieldPath": "detailedActionTarget.campaignId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

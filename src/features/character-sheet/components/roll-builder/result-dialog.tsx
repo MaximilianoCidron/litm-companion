@@ -277,8 +277,12 @@ export function RollResultDialog() {
               roll.detailedActionTarget &&
               !roll.limitAllocationApplied &&
               roll.power > 0 &&
-              role === "owner" ? (
-                <AllocationStep roll={roll} />
+              (role === "owner" || role === "gm") ? (
+                <AllocationStep
+                  roll={roll}
+                  characterName={character.identity.name}
+                  isGmAllocating={role === "gm"}
+                />
               ) : null}
 
               {roll.reactingTo ? (

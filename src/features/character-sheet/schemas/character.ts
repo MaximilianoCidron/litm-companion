@@ -10,6 +10,13 @@ import { FellowshipRelationshipSchema } from "./fellowship";
 export const CharacterStatusSchema = z.enum(["active", "retired"]);
 export type CharacterStatus = z.infer<typeof CharacterStatusSchema>;
 
+export const CharacterAvatarSchema = z.object({
+  mainUrl: z.string().url(),
+  thumbUrl: z.string().url(),
+  updatedAt: z.string().datetime(),
+});
+export type CharacterAvatar = z.infer<typeof CharacterAvatarSchema>;
+
 export const CharacterSchema = z.object({
   id: CharacterId,
   userId: z.string().min(1),
@@ -24,6 +31,8 @@ export const CharacterSchema = z.object({
   }),
   // Legacy docs lack this field — Zod default keeps them parseable.
   status: CharacterStatusSchema.default("active"),
+  // Structured avatar (main 512 + thumb 128). Legacy docs default to null.
+  avatar: CharacterAvatarSchema.nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

@@ -1,6 +1,7 @@
 "use client";
 import { Card, Skeleton, Track } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
+import { AvatarUploader } from "../avatar/avatar-uploader";
 import { CampaignBadge } from "../campaign/campaign-badge";
 import { CharacterHeaderMenu } from "../character-header-menu";
 import { MomentOfFulfillmentBadge } from "../moment-of-fulfillment";
@@ -25,18 +26,30 @@ export function HeroSection() {
           <CharacterHeaderMenu />
         </Card.Header>
         <Card.Body className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
-              Name
-            </span>
-            <h2 className="font-display text-2xl tracking-tight text-ink-base dark:text-parchment-base">
-              {identity.name || "Unnamed hero"}
-            </h2>
-            {identity.pronouns ? (
-              <span className="text-sm text-ink-muted dark:text-parchment-muted">
-                {identity.pronouns}
+          <div className="flex items-start gap-4">
+            <AvatarUploader
+              characterId={character.id}
+              ownerUid={character.userId}
+              avatarUrl={
+                character.avatar?.mainUrl ?? identity.avatarUrl ?? null
+              }
+              characterName={identity.name}
+              size="lg"
+              canEdit={role === "owner" && !isRetired}
+            />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <span className="text-xs uppercase tracking-wider text-ink-subtle dark:text-parchment-subtle">
+                Name
               </span>
-            ) : null}
+              <h2 className="font-display text-2xl tracking-tight text-ink-base dark:text-parchment-base">
+                {identity.name || "Unnamed hero"}
+              </h2>
+              {identity.pronouns ? (
+                <span className="text-sm text-ink-muted dark:text-parchment-muted">
+                  {identity.pronouns}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex flex-col gap-2">

@@ -4,18 +4,25 @@ import Link from "next/link";
 import { CalendarClock, ScrollText } from "lucide-react";
 import { useCampaign } from "../CampaignProvider";
 import { FellowshipDisplay } from "../fellowship/fellowship-display";
+import { BulkCleanupDialog } from "./bulk-cleanup/dialog";
 import { ChallengesPanel } from "./challenges";
 import { EngagedChallengesSection } from "./engaged-challenges";
 import { InvitationsPanel } from "./invitations-panel";
+import { PendingAllocationsPanel } from "./pending-allocations";
 import { RosterView } from "./roster-view";
 import { SessionStatusBar } from "./session-status";
 import { SettingsPanel } from "./settings-panel";
+import type { PendingAllocation } from "../../lib/queries";
 
 interface CampaignPageShellProps {
   currentUid: string;
+  pendingAllocations?: readonly PendingAllocation[];
 }
 
-export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
+export function CampaignPageShell({
+  currentUid,
+  pendingAllocations = [],
+}: CampaignPageShellProps) {
   const campaign = useCampaign();
 
   if (campaign.status === "none") {
@@ -77,6 +84,10 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
         ) : null}
       </header>
 
+      {isGm && pendingAllocations.length > 0 ? (
+        <PendingAllocationsPanel allocations={pendingAllocations} />
+      ) : null}
+
       <EngagedChallengesSection />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
@@ -94,6 +105,17 @@ export function CampaignPageShell({ currentUid }: CampaignPageShellProps) {
           </div>
         ) : null}
       </div>
+
+      {isGm ? (
+        <section className="mt-2 flex flex-col gap-3 border-t border-mist-light pt-6 dark:border-mist-dark">
+          <h2 className="font-display text-xs uppercase tracking-wider text-ink-muted dark:text-parchment-muted">
+            GM tools
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <BulkCleanupDialog campaignId={live.id} />
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

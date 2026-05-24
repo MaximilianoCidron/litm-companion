@@ -6,6 +6,7 @@ import { IncomingInvitationsSection } from "@/features/character-sheet/component
 import {
   getMyCampaigns,
   getMyCharacters,
+  getUserSettingsServerSide,
 } from "@/features/character-sheet/lib/queries";
 
 export default async function DashboardPage({
@@ -15,7 +16,15 @@ export default async function DashboardPage({
 }) {
   const user = await getSessionUser();
   const params = (await searchParams) ?? {};
-  const includeRetired = params.archived === "1";
+  // URL param takes precedence as a per-session override; absent it, the
+  // user's setting governs.
+  const settings = await getUserSettingsServerSide(user.uid);
+  const includeRetired =
+    params.archived === "1"
+      ? true
+      : params.archived === "0"
+        ? false
+        : settings.showRetiredCharacters;
 
   const [characters, campaigns] = await Promise.all([
     getMyCharacters(user.uid, { includeRetired }),
@@ -32,7 +41,9 @@ export default async function DashboardPage({
       <IncomingInvitationsSection currentUid={user.uid} />
       <div className="flex items-center justify-end">
         <Link
-          href={includeRetired ? "/dashboard" : "/dashboard?archived=1"}
+          href={
+            includeRetired ? "/dashboard?archived=0" : "/dashboard?archived=1"
+          }
           className="text-sm text-ink-muted underline-offset-2 hover:underline dark:text-parchment-muted"
         >
           {includeRetired ? "Hide archived" : "Show archived"}

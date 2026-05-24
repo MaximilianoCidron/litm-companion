@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useTransition } from "react";
 import { LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
 import { signOut as firebaseSignOut } from "firebase/auth";
@@ -19,8 +20,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/shared/ui";
-import { useSetTheme, useTheme } from "@/shared/stores/ui-store";
-import type { Theme } from "@/shared/lib/theme";
+
+export type ThemePreference = "light" | "dark" | "system";
 
 export interface AppUser {
   uid: string;
@@ -40,11 +41,16 @@ function initials(user: AppUser): string {
 interface UserMenuProps {
   user: AppUser;
   signOut: () => Promise<void>;
+  themePreference: ThemePreference;
+  onSetTheme: (next: ThemePreference) => void;
 }
 
-export function UserMenu({ user, signOut }: UserMenuProps) {
-  const theme = useTheme();
-  const setTheme = useSetTheme();
+export function UserMenu({
+  user,
+  signOut,
+  themePreference,
+  onSetTheme,
+}: UserMenuProps) {
   const [pending, startTransition] = useTransition();
 
   const onSignOut = () => {
@@ -82,15 +88,17 @@ export function UserMenu({ user, signOut }: UserMenuProps) {
           {user.displayName ?? user.email ?? "Account"}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>
-          <Settings className="h-4 w-4" aria-hidden="true" />
-          Settings
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings className="h-4 w-4" aria-hidden="true" />
+            Settings
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
-            {theme === "dark" ? (
+            {themePreference === "dark" ? (
               <Moon className="h-4 w-4" aria-hidden="true" />
-            ) : theme === "light" ? (
+            ) : themePreference === "light" ? (
               <Sun className="h-4 w-4" aria-hidden="true" />
             ) : (
               <Monitor className="h-4 w-4" aria-hidden="true" />
@@ -99,8 +107,8 @@ export function UserMenu({ user, signOut }: UserMenuProps) {
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             <DropdownMenuRadioGroup
-              value={theme}
-              onValueChange={(v) => setTheme(v as Theme)}
+              value={themePreference}
+              onValueChange={(v) => onSetTheme(v as ThemePreference)}
             >
               <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>

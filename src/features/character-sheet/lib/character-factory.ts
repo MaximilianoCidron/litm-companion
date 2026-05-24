@@ -73,5 +73,6 @@ export function buildBlankCharacter(
     progression: { promise: 0, quintessences: [], momentsOfFulfillment: [] },
     fellowship: { relationships: [] },
     status: "active",
+    avatar: null,
   };
 }

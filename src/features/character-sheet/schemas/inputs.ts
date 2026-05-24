@@ -23,6 +23,7 @@ import {
   ChallengeRoleSchema,
   ConsequenceTemplateSchema,
 } from "./challenge";
+import { ThemePreferenceSchema } from "./user-settings";
 
 export const CreateCharacterInput = z.object({
   name: z.string().min(1).max(60),
@@ -274,6 +275,76 @@ export const CommitRollInput = z.object({
     .default(null),
 });
 export type CommitRollInput = z.infer<typeof CommitRollInput>;
+
+// Hand-written partial WITHOUT defaults — using
+// `UserSettingsSchema.omit(...).partial()` keeps each field's `.default(...)`
+// and Zod fills missing keys with defaults at parse time, which causes a
+// merge write to overwrite untouched fields with defaults. We want only the
+// keys the caller actually sent.
+export const UpdateUserSettingsInput = z.object({
+  patch: z.object({
+    hidePresence: z.boolean().optional(),
+    themePreference: ThemePreferenceSchema.optional(),
+    showRetiredCharacters: z.boolean().optional(),
+    confirmBeforeRolling: z.boolean().optional(),
+    showInvitationToasts: z.boolean().optional(),
+    showPendingThreatToasts: z.boolean().optional(),
+  }),
+});
+export type UpdateUserSettingsInput = z.infer<typeof UpdateUserSettingsInput>;
+
+export const BulkCleanupCampaignInput = z.object({
+  campaignId: CampaignId,
+  operations: z
+    .object({
+      unscratchPowerTags: z.boolean().default(false),
+      clearHinderingStatuses: z.boolean().default(false),
+      discardStoryTags: z.boolean().default(false),
+      unburnPowerTags: z.boolean().default(false),
+      refreshFellowshipTags: z.boolean().default(false),
+      refreshChallengeTags: z.boolean().default(false),
+    })
+    .refine((ops) => Object.values(ops).some((v) => v === true), {
+      message: "At least one operation must be selected.",
+    }),
+});
+export type BulkCleanupCampaignInput = z.infer<
+  typeof BulkCleanupCampaignInput
+>;
+
+export const GetCampaignCleanupPreviewInput = z.object({
+  campaignId: CampaignId,
+});
+export type GetCampaignCleanupPreviewInput = z.infer<
+  typeof GetCampaignCleanupPreviewInput
+>;
+
+export const UpdateDisplayNameInput = z.object({
+  displayName: z
+    .string()
+    .trim()
+    .min(1, "Display name can't be empty.")
+    .max(50, "Display name can't be longer than 50 characters.")
+    .refine(
+      (s) => !/[\n\r]/.test(s),
+      "Display name can't contain line breaks.",
+    ),
+});
+export type UpdateDisplayNameInput = z.infer<typeof UpdateDisplayNameInput>;
+
+export const SetCharacterAvatarInput = z.object({
+  characterId: CharacterId,
+  mainUrl: z.string().url(),
+  thumbUrl: z.string().url(),
+});
+export type SetCharacterAvatarInput = z.infer<typeof SetCharacterAvatarInput>;
+
+export const RemoveCharacterAvatarInput = z.object({
+  characterId: CharacterId,
+});
+export type RemoveCharacterAvatarInput = z.infer<
+  typeof RemoveCharacterAvatarInput
+>;
 
 export const AllocateLimitProgressInput = z.object({
   rollId: z.string().min(1),

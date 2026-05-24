@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { verifySessionCookie } from "@/shared/firebase/session";
-import { AppHeader } from "@/shared/components/AppHeader";
 import type { AppUser } from "@/shared/components/UserMenu";
 import { signOutAction } from "@/features/auth";
 import { HeartbeatLoop } from "@/features/character-sheet/components/presence/heartbeat-loop";
+import { UserSettingsProvider } from "@/features/character-sheet/components/UserSettingsProvider";
+import { ThemeApplier } from "@/features/character-sheet/components/ThemeApplier";
+import { AppHeaderContainer } from "@/features/character-sheet/components/AppHeaderContainer";
 
 /**
  * Server-side session guard for the authenticated app shell.
@@ -29,10 +31,13 @@ export default async function AppShellLayout({
   };
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <HeartbeatLoop />
-      <AppHeader user={user} signOut={signOutAction} />
-      <div className="flex-1">{children}</div>
-    </div>
+    <UserSettingsProvider uid={user.uid}>
+      <ThemeApplier />
+      <div className="flex min-h-dvh flex-col">
+        <HeartbeatLoop />
+        <AppHeaderContainer user={user} signOut={signOutAction} />
+        <div className="flex-1">{children}</div>
+      </div>
+    </UserSettingsProvider>
   );
 }

@@ -119,6 +119,7 @@ function character(
     },
     fellowship: { relationships },
     status: "active",
+    avatar: null,
     createdAt: NOW,
     updatedAt: NOW,
   };

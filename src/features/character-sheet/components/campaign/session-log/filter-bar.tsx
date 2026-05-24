@@ -19,6 +19,7 @@ const OPTIONS: { key: LogFilter; label: string }[] = [
   { key: "momentOfFulfillment", label: "Moments" },
   { key: "sessionBoundary", label: "Sessions" },
   { key: "limitAdvancement", label: "Limit progress" },
+  { key: "bulkCleanup", label: "Party reset" },
 ];
 
 export function FilterBar({ value, onChange, counts }: FilterBarProps) {

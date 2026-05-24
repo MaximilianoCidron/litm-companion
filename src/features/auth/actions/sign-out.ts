@@ -6,6 +6,7 @@ import {
   SESSION_COOKIE_NAME,
   verifySessionCookie,
 } from "@/shared/firebase/session";
+import { clearThemeCookie } from "@/shared/auth/theme-cookie";
 
 /**
  * Server Action — sign out the current user.
@@ -23,5 +24,6 @@ export async function signOutAction(): Promise<void> {
   }
   const store = await cookies();
   store.delete(SESSION_COOKIE_NAME);
+  await clearThemeCookie();
   redirect("/login");
 }

@@ -5,8 +5,14 @@ service cloud.firestore {
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
+    // App Check gate: requests must carry a verified reCAPTCHA v3 token.
+    // Admin SDK bypasses rules so Server Actions are unaffected.
+    function hasAppCheck() {
+      return request.app != null;
+    }
+
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && hasAppCheck();
     }
 
     function isSelf(uid) {
@@ -158,6 +164,16 @@ service cloud.firestore {
         && resource.data.gmId == request.auth.uid;
       allow create: if isSignedIn()
         && request.resource.data.gmId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------------
+    // userSettings/{uid} — per-user preferences. Owner-only read; writes
+    // go through the updateUserSettings Server Action (Admin SDK bypasses
+    // these rules server-side).
+    // ------------------------------------------------------------------
+    match /userSettings/{uid} {
+      allow read: if isSelf(uid);
+      allow write: if false;
     }
 
     // ------------------------------------------------------------------

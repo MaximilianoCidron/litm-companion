@@ -1,4 +1,4 @@
-import { Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { Character } from "../../schemas";
 import { CardFrame } from "./shared/card-frame";
 import { MomentHistoryList } from "./shared/moment-history-list";
@@ -17,6 +17,18 @@ const styles = StyleSheet.create({
     color: PDF_TOKENS.inkBase,
   },
   identity: { marginBottom: 16 },
+  avatarRow: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: PDF_TOKENS.inkMuted,
+    objectFit: "cover",
+  },
   name: {
     fontFamily: "Cinzel",
     fontSize: 22,
@@ -70,6 +82,13 @@ export function HeroPage({ character }: { character: Character }) {
   return (
     <Page size="A4" style={styles.page}>
       <CardFrame title={isRetired ? "Hero Card · Retired" : "Hero Card"}>
+        {character.avatar?.mainUrl ? (
+          <View style={styles.avatarRow}>
+            {/* @react-pdf/renderer Image has no alt prop — disable jsx-a11y rule meant for HTML img */}
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={character.avatar.mainUrl} style={styles.avatarImage} />
+          </View>
+        ) : null}
         <View style={styles.identity}>
           <Text style={styles.name}>{identity.name || "Unnamed"}</Text>
           {identity.concept ? (

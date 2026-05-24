@@ -79,11 +79,13 @@ export {
   CharacterSchema,
   CharacterSummarySchema,
   CharacterStatusSchema,
+  CharacterAvatarSchema,
 } from "./character";
 export type {
   Character,
   CharacterSummary,
   CharacterStatus,
+  CharacterAvatar,
 } from "./character";
 
 export {
@@ -135,6 +137,13 @@ export type { Session } from "./session";
 
 export { PresenceDocSchema } from "./presence";
 export type { PresenceDoc } from "./presence";
+
+export {
+  ThemePreferenceSchema,
+  UserSettingsSchema,
+  defaultSettingsFor,
+} from "./user-settings";
+export type { ThemePreference, UserSettings } from "./user-settings";
 
 export {
   TagLocationSchema,
@@ -208,6 +217,12 @@ export {
   RedeemDirectedInvitationInput,
   DeclineDirectedInvitationInput,
   AllocateLimitProgressInput,
+  UpdateUserSettingsInput,
+  UpdateDisplayNameInput,
+  BulkCleanupCampaignInput,
+  GetCampaignCleanupPreviewInput,
+  SetCharacterAvatarInput,
+  RemoveCharacterAvatarInput,
 } from "./inputs";
 export type {
   TagInvocationInput,

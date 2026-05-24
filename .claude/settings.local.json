@@ -5,7 +5,8 @@
       "PowerShell(pnpm *)",
       "PowerShell(npm i *)",
       "Bash(npx tsc *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(npx firebase-tools *)"
     ]
   }
 }

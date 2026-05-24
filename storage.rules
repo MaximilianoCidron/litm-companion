@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    /* =========================
+       Helpers
+    ========================== */
+
+    function hasAppCheck() {
+      return request.app != null;
+    }
+
+    function isAuthenticated() {
+      return request.auth != null && hasAppCheck();
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isAllowedFileSize() {
+      // 2MB max
+      return request.resource.size < 2 * 1024 * 1024;
+    }
+
+    function isSafeContentType() {
+      return request.resource.contentType.matches(
+        'image/jpeg|image/png|image/webp'
+      );
+    }
+
+    /* =========================
+       User private uploads
+    ========================== */
+
+    match /users/{userId}/{allPaths=**} {
+
+      // Read/write only owner
+      allow read, write:
+        if isAuthenticated()
+        && isOwner(userId)
+        && isImage()
+        && isSafeContentType()
+        && isAllowedFileSize();
+    }
+
+    /* =========================
+       Completely block everything else
+    ========================== */
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

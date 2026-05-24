@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { pingPresence } from "../../actions";
+import { useUserSettings } from "../UserSettingsProvider";
 import { usePresenceStore } from "../../stores/presence";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -12,13 +13,16 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
  * effect dep array — so navigation propagates within seconds, not minutes.
  *
  * Errors are best-effort: a missed heartbeat just means the user appears
- * offline ~75s sooner — recoverable on the next tick.
+ * offline ~75s sooner — recoverable on the next tick. Gated by
+ * settings.hidePresence — when true the loop sleeps entirely.
  */
 export function HeartbeatLoop() {
   const campaignId = usePresenceStore((s) => s.currentCampaignId);
   const characterId = usePresenceStore((s) => s.currentCharacterId);
+  const hidePresence = useUserSettings().hidePresence;
 
   useEffect(() => {
+    if (hidePresence) return;
     let cancelled = false;
     const ping = () => {
       if (cancelled) return;
@@ -32,7 +36,7 @@ export function HeartbeatLoop() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [campaignId, characterId]);
+  }, [campaignId, characterId, hidePresence]);
 
   return null;
 }

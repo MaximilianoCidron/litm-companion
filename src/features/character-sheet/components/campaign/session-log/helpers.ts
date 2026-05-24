@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Flag,
   MessageSquare,
+  RotateCcw,
   ScrollText,
   Sparkles,
   Sword,
@@ -19,7 +20,8 @@ export type LogFilter =
   | "themeAdvancement"
   | "momentOfFulfillment"
   | "sessionBoundary"
-  | "limitAdvancement";
+  | "limitAdvancement"
+  | "bulkCleanup";
 
 export type LogFilterCounts = Record<LogFilter, number>;
 
@@ -43,6 +45,7 @@ export function summarizeCounts(
     momentOfFulfillment: 0,
     sessionBoundary: 0,
     limitAdvancement: 0,
+    bulkCleanup: 0,
   };
   for (const e of entries) counts[e.details.kind] += 1;
   return counts;
@@ -99,6 +102,12 @@ const KIND_META: Record<SessionLogDetails["kind"], KindMeta> = {
     label: "Limit progress",
     accent: "border-l-4 border-rust",
     badge: "bg-rust-soft text-rust-text dark:bg-rust-soft-dark dark:text-rust-text-dark",
+  },
+  bulkCleanup: {
+    Icon: RotateCcw,
+    label: "Party reset",
+    accent: "border-l-4 border-ink-muted",
+    badge: "bg-ink-muted/15 text-ink-muted dark:text-parchment-muted",
   },
 };
 

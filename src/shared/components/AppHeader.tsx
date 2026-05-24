@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
-import { UserMenu, type AppUser } from "./UserMenu";
+import { UserMenu, type AppUser, type ThemePreference } from "./UserMenu";
 
 interface BreadcrumbProps {
   characterName?: string;
@@ -28,9 +28,17 @@ interface AppHeaderProps {
   user: AppUser;
   signOut: () => Promise<void>;
   characterName?: string;
+  themePreference: ThemePreference;
+  onSetTheme: (next: ThemePreference) => void;
 }
 
-export function AppHeader({ user, signOut, characterName }: AppHeaderProps) {
+export function AppHeader({
+  user,
+  signOut,
+  characterName,
+  themePreference,
+  onSetTheme,
+}: AppHeaderProps) {
   const pathname = usePathname();
   const inCharacterRoute = /^\/characters\/[^/]+/.test(pathname ?? "");
 
@@ -45,7 +53,12 @@ export function AppHeader({ user, signOut, characterName }: AppHeaderProps) {
         </Link>
         {inCharacterRoute ? <Breadcrumb characterName={characterName} /> : null}
       </div>
-      <UserMenu user={user} signOut={signOut} />
+      <UserMenu
+        user={user}
+        signOut={signOut}
+        themePreference={themePreference}
+        onSetTheme={onSetTheme}
+      />
     </header>
   );
 }

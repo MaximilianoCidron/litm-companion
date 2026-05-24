@@ -62,6 +62,26 @@ export const SessionLogDetailsSchema = z.discriminatedUnion("kind", [
     threshold: z.number().int().min(1).max(50),
     overcame: z.boolean(),
   }),
+  z.object({
+    kind: z.literal("bulkCleanup"),
+    operations: z.object({
+      unscratchPowerTags: z.boolean(),
+      clearHinderingStatuses: z.boolean(),
+      discardStoryTags: z.boolean(),
+      unburnPowerTags: z.boolean(),
+      refreshFellowshipTags: z.boolean(),
+      refreshChallengeTags: z.boolean(),
+    }),
+    counts: z.object({
+      affectedCharacterCount: z.number().int().min(0),
+      powerTagsUnscratched: z.number().int().min(0),
+      powerTagsUnburned: z.number().int().min(0),
+      hinderingStatusesCleared: z.number().int().min(0),
+      storyTagsDiscarded: z.number().int().min(0),
+      fellowshipTagsRefreshed: z.number().int().min(0),
+      engagedChallengeTagsRefreshed: z.number().int().min(0),
+    }),
+  }),
 ]);
 export type SessionLogDetails = z.infer<typeof SessionLogDetailsSchema>;
 
