@@ -5,27 +5,31 @@ service cloud.firestore {
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
-    // App Check gate: requests must carry a verified reCAPTCHA v3 token.
-    // Admin SDK bypasses rules so Server Actions are unaffected.
-    function hasAppCheck() {
-      return request.app != null;
-    }
-
+    // App Check is enforced at the API edge (Firebase Console → App Check →
+    // Cloud Firestore → Enforce). Do NOT re-check `request.app` here — a
+    // second gate inside rules creates silent permission-denied failures
+    // whenever the client's App Check token fails to attach (debug-token
+    // mismatch, init race, emulator, RN). Rules answer "is this user
+    // authorized?"; enforcement answers "is this a real app instance?".
     function isSignedIn() {
-      return request.auth != null && hasAppCheck();
+      return request.auth != null;
     }
 
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Returns true when the caller is the GM of any campaign in the supplied list.
+    // Returns true when the caller is the GM of any campaign in the supplied
+    // list. Defensive: `exists()` guard prevents the rule from throwing when
+    // the users/{uid} doc isn't created yet; `.get('gmCampaignIds', [])`
+    // defaults a missing field to an empty list.
     function isGM(campaignIds) {
       return isSignedIn()
         && campaignIds is list
         && campaignIds.size() > 0
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && campaignIds.hasAny(
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.gmCampaignIds
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('gmCampaignIds', [])
            );
     }
 
@@ -147,12 +151,16 @@ service cloud.firestore {
       // the query's `campaignId` filter, or the directedAtUid points at
       // them. Combined with the corresponding `where(...)` clauses on the
       // client, this confines enumeration to the right viewer.
-      allow list: if isSignedIn() && (
-        (resource.data.campaignId is string
-          && get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.gmUid == request.auth.uid)
-        || (resource.data.directedAtUid is string
-            && resource.data.directedAtUid == request.auth.uid)
-      );
+      // Single-branch list: only the addressee may enumerate their
+      // invitations. Combined with the client's `where("directedAtUid",
+      // "==", uid)` filter, this restricts the result set to the caller.
+      //
+      // GM-side listing (per campaign) cannot ride this rule because OR
+      // predicates with cross-doc `get()` lookups don't survive Firestore's
+      // static list-rule analysis. GM enumeration is handled via a Server
+      // Action that uses the Admin SDK (which bypasses these rules).
+      allow list: if isSignedIn()
+        && resource.data.directedAtUid == request.auth.uid;
       allow write: if false;
     }
 

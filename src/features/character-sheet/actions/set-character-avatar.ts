@@ -19,9 +19,9 @@ export const setCharacterAvatar = withAction(
       );
 
       // Defense-in-depth: only persist URLs pointing at Firebase Storage
-      // AND specifically at this owner+character's folder. Storage rules
-      // already gate writes; this prevents arbitrary URL injection at the
-      // Firestore layer.
+      // AND specifically at this owner+character's folder. AuthSyncGuard
+      // keeps the client SDK uid aligned with the session uid, so ctx.uid
+      // here equals the path's userId at upload time.
       const expectedPath = `users%2F${ctx.uid}%2Fcharacters%2F${input.characterId}%2F`;
       for (const url of [input.mainUrl, input.thumbUrl]) {
         if (!url.startsWith(FIREBASE_STORAGE_PREFIX)) {

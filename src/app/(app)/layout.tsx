@@ -6,6 +6,7 @@ import { HeartbeatLoop } from "@/features/character-sheet/components/presence/he
 import { UserSettingsProvider } from "@/features/character-sheet/components/UserSettingsProvider";
 import { ThemeApplier } from "@/features/character-sheet/components/ThemeApplier";
 import { AppHeaderContainer } from "@/features/character-sheet/components/AppHeaderContainer";
+import { AuthSyncGuard } from "@/features/character-sheet/components/AuthSyncGuard";
 
 /**
  * Server-side session guard for the authenticated app shell.
@@ -32,6 +33,7 @@ export default async function AppShellLayout({
 
   return (
     <UserSettingsProvider uid={user.uid}>
+      <AuthSyncGuard serverUid={user.uid} />
       <ThemeApplier />
       <div className="flex min-h-dvh flex-col">
         <HeartbeatLoop />

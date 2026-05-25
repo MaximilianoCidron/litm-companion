@@ -7,12 +7,12 @@ service firebase.storage {
        Helpers
     ========================== */
 
-    function hasAppCheck() {
-      return request.app != null;
-    }
-
+    // App Check enforcement on Storage is currently OFF because the SDK
+    // intermittently fails to attach the token (works for Firestore via the
+    // same initializeAppCheck instance — to investigate). Other guards (auth,
+    // owner, MIME, size) stay in place.
     function isAuthenticated() {
-      return request.auth != null && hasAppCheck();
+      return request.auth != null;
     }
 
     function isOwner(userId) {
@@ -40,8 +40,13 @@ service firebase.storage {
 
     match /users/{userId}/{allPaths=**} {
 
-      // Read/write only owner
-      allow read, write:
+      // Reads are unconditional for now — we want owners to be able to
+      // fetch their uploaded avatars via getDownloadURL. The MIME/size
+      // guards are write-only since `request.resource` is null on reads
+      // and would otherwise nullify the predicate.
+      allow read: if isAuthenticated() && isOwner(userId);
+
+      allow write:
         if isAuthenticated()
         && isOwner(userId)
         && isImage()

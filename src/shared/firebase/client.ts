@@ -52,6 +52,10 @@ function getFirebaseApp(): FirebaseApp {
  * `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`; logs a warning + skips when missing so
  * dev environments without App Check still boot.
  */
+interface AppCheckDebugWindow {
+  FIREBASE_APPCHECK_DEBUG_TOKEN?: string | boolean;
+}
+
 export function getFirebaseAppCheck(): AppCheck | null {
   if (typeof window === "undefined") return null;
   if (cachedAppCheck) return cachedAppCheck;
@@ -61,6 +65,15 @@ export function getFirebaseAppCheck(): AppCheck | null {
       "[app-check] NEXT_PUBLIC_RECAPTCHA_SITE_KEY missing — skipping App Check init.",
     );
     return null;
+  }
+  // Dev-only: enable debug token. The SDK either uses a fixed token from
+  // NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN (preferred — stable across reloads) or
+  // auto-generates one and logs it to the console. Register that token in
+  // Firebase Console → App Check → Apps → Manage debug tokens.
+  if (process.env.NODE_ENV !== "production") {
+    const debugToken = process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN;
+    (window as unknown as AppCheckDebugWindow).FIREBASE_APPCHECK_DEBUG_TOKEN =
+      debugToken && debugToken.length > 0 ? debugToken : true;
   }
   cachedAppCheck = initializeAppCheck(getFirebaseApp(), {
     provider: new ReCaptchaV3Provider(siteKey),
