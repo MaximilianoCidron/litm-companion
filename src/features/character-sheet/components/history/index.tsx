@@ -1,32 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { Skeleton } from "@/shared/ui";
+import { useMemo, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { Button, Skeleton } from "@/shared/ui";
 import { useCharacter } from "../CharacterProvider";
 import { useRollHistory } from "../../hooks/use-roll-history";
-import type { RollRecord } from "../../schemas";
+import {
+  applyHistoryFilters,
+  countActiveFilters,
+  emptyFilters,
+  hasActiveFilters,
+  type HistoryFilters,
+} from "../../lib/history-filter";
+import { ActiveFilterChips } from "./active-filter-chips";
 import { HistoryEmptyState } from "./empty-state";
-import { FilterBar, type RollFilter, type RollFilterCounts } from "./filter-bar";
+import { HistoryFilterPanel } from "./history-filter-panel";
+import { HistorySearchInput } from "./history-search-input";
 import { RollList } from "./roll-list";
 
-function applyFilter(
-  rolls: readonly RollRecord[],
-  filter: RollFilter,
-): readonly RollRecord[] {
-  if (filter === "all") return rolls;
-  if (filter === "reactions") return rolls.filter((r) => r.isReaction);
-  return rolls.filter((r) => !r.isReaction && r.tier === filter);
-}
-
-function summarize(rolls: readonly RollRecord[]): RollFilterCounts {
-  return {
-    all: rolls.length,
-    success: rolls.filter((r) => !r.isReaction && r.tier === "success").length,
-    mixed: rolls.filter((r) => !r.isReaction && r.tier === "mixed").length,
-    failure: rolls.filter((r) => !r.isReaction && r.tier === "failure").length,
-    reactions: rolls.filter((r) => r.isReaction).length,
-  };
-}
+const ROLL_LIMIT = 100;
 
 function RollListSkeleton() {
   return (
@@ -51,18 +43,39 @@ function ErrorPanel({ message }: { message: string }) {
   );
 }
 
+function FilteredEmptyState({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="px-4 py-12 text-center">
+      <p className="mb-3 text-sm italic text-ink-muted dark:text-parchment-muted">
+        No rolls match your filters.
+      </p>
+      <Button variant="secondary" size="sm" onClick={onClear}>
+        Clear all filters
+      </Button>
+    </div>
+  );
+}
+
 export function HistoryView() {
   const { character } = useCharacter();
-  const state = useRollHistory(character.id);
-  const [filter, setFilter] = useState<RollFilter>("all");
+  const state = useRollHistory(character.id, ROLL_LIMIT);
+  const [filters, setFilters] = useState<HistoryFilters>(emptyFilters());
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const filtered = useMemo(
+    () => applyHistoryFilters(state.rolls, filters),
+    [state.rolls, filters],
+  );
 
   if (state.status === "loading") return <RollListSkeleton />;
   if (state.status === "error" && state.rolls.length === 0) {
     return <ErrorPanel message={state.error.message} />;
   }
 
-  const counts = summarize(state.rolls);
-  const filtered = applyFilter(state.rolls, filter);
+  const total = state.rolls.length;
+  const truncated = total >= ROLL_LIMIT;
+  const activeCount = countActiveFilters(filters);
+  const filtersActive = hasActiveFilters(filters);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -70,28 +83,85 @@ export function HistoryView() {
         <h2 className="font-display text-xl text-ink-base dark:text-parchment-base">
           Roll history
         </h2>
-        {state.status === "error" && (
+        {state.status === "error" ? (
           <span className="text-xs italic text-rust-text dark:text-rust-text-dark">
             Connection issue — showing cached rolls
           </span>
-        )}
+        ) : null}
       </header>
 
-      <FilterBar value={filter} onChange={setFilter} counts={counts} />
+      {total > 0 ? (
+        <>
+          <div className="flex items-stretch gap-2">
+            <HistorySearchInput
+              value={filters.text}
+              onChange={(text) => setFilters({ ...filters, text })}
+            />
+            <Button
+              type="button"
+              variant={panelOpen ? "primary" : "secondary"}
+              size="md"
+              onClick={() => setPanelOpen((o) => !o)}
+              aria-expanded={panelOpen}
+              aria-controls="history-filter-panel"
+            >
+              <SlidersHorizontal
+                className="mr-1.5 h-4 w-4"
+                aria-hidden="true"
+              />
+              Filters
+              {activeCount > 0 ? (
+                <span className="numeric ml-1.5 rounded-full bg-parchment/20 px-1.5 py-0.5 text-xs">
+                  {activeCount}
+                </span>
+              ) : null}
+            </Button>
+          </div>
 
-      {state.rolls.length === 0 ? (
+          {panelOpen ? (
+            <div id="history-filter-panel">
+              <HistoryFilterPanel
+                filters={filters}
+                onFiltersChange={setFilters}
+                themes={character.themes}
+              />
+            </div>
+          ) : null}
+
+          {filtersActive ? (
+            <ActiveFilterChips
+              filters={filters}
+              onFiltersChange={setFilters}
+              themes={character.themes}
+            />
+          ) : null}
+
+          <p className="text-xs text-ink-muted dark:text-parchment-muted">
+            {filtersActive ? (
+              <>
+                Showing <span className="numeric">{filtered.length}</span> of{" "}
+                <span className="numeric">{total}</span> roll
+                {total === 1 ? "" : "s"}
+                {truncated ? " (most recent 100)" : ""}
+              </>
+            ) : (
+              <>
+                <span className="numeric">{total}</span> roll
+                {total === 1 ? "" : "s"}
+                {truncated ? " (most recent 100)" : ""}
+              </>
+            )}
+          </p>
+        </>
+      ) : null}
+
+      {total === 0 ? (
         <HistoryEmptyState />
       ) : filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm italic text-ink-subtle dark:text-parchment-subtle">
-          No rolls match this filter.
-        </p>
+        <FilteredEmptyState onClear={() => setFilters(emptyFilters())} />
       ) : (
         <RollList rolls={filtered} />
       )}
-
-      <p className="pt-4 text-center text-xs text-ink-subtle dark:text-parchment-subtle">
-        Showing the {Math.min(30, state.rolls.length)} most recent rolls.
-      </p>
     </div>
   );
 }
