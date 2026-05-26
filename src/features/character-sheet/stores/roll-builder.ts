@@ -64,6 +64,8 @@ export function makeTagKey(
     return `fellowship:${location.campaignId}:${tagId}`;
   if (location.kind === "challenge")
     return `challenge:${location.challengeId}:${tagId}`;
+  if (location.kind === "quintessence")
+    return `quintessence:${location.quintessenceId}`;
   return `relationship:${location.relationshipId}`;
 }
 

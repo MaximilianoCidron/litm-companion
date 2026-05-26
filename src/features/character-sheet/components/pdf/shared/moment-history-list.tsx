@@ -5,7 +5,7 @@ import { PDF_TOKENS } from "../styles/tokens";
 const PATH_LABELS: Record<string, string> = {
   retire: "Retire",
   reforge: "Reforge",
-  gainQuintessence: "Quintessence",
+  gainQuintessence: "Crystallize",
   shakeWorld: "Shake the world",
   speakWordsEternal: "Words eternal",
   unearthTruths: "Unearth truths",
@@ -17,13 +17,35 @@ const DATE_FMT = new Intl.DateTimeFormat("en", {
   day: "numeric",
 });
 
+function summarize(entry: MomentOfFulfillmentEntry): string {
+  switch (entry.path) {
+    case "retire":
+      return entry.finalWords;
+    case "reforge":
+      return `${entry.replacedThemeName} → ${entry.newThemeName}${
+        entry.narrativeDescription ? ` — ${entry.narrativeDescription}` : ""
+      }`;
+    case "gainQuintessence":
+      return `${entry.quintessenceName}${
+        entry.narrativeDescription ? ` — ${entry.narrativeDescription}` : ""
+      }`;
+    case "speakWordsEternal":
+      return `"${entry.newPowerTagName}" → ${entry.themeName}${
+        entry.narrativeDescription ? ` — ${entry.narrativeDescription}` : ""
+      }`;
+    case "shakeWorld":
+    case "unearthTruths":
+      return entry.narrativeDescription;
+  }
+}
+
 export function MomentHistoryList({
   entries,
 }: {
   entries: readonly MomentOfFulfillmentEntry[];
 }) {
   const sorted = [...entries].sort((a, b) =>
-    b.completedAt.localeCompare(a.completedAt),
+    b.resolvedAt.localeCompare(a.resolvedAt),
   );
   return (
     <View>
@@ -39,7 +61,7 @@ export function MomentHistoryList({
               width: 70,
             }}
           >
-            {DATE_FMT.format(new Date(e.completedAt))}
+            {DATE_FMT.format(new Date(e.resolvedAt))}
           </Text>
           <Text
             style={{
@@ -49,7 +71,7 @@ export function MomentHistoryList({
               width: 90,
             }}
           >
-            {PATH_LABELS[e.chosenPath] ?? e.chosenPath}
+            {PATH_LABELS[e.path] ?? e.path}
           </Text>
           <Text
             style={{
@@ -60,7 +82,7 @@ export function MomentHistoryList({
               fontStyle: "italic",
             }}
           >
-            {e.description || ""}
+            {summarize(e)}
           </Text>
         </View>
       ))}

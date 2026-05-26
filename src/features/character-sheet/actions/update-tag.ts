@@ -57,10 +57,63 @@ export const updateTag = withAction(
       if (input.location.kind === "theme") {
         return applyToTheme(input, data, access.snap.ref, tx);
       }
+      if (input.location.kind === "quintessence") {
+        return applyToQuintessence(input, data, access.snap.ref, tx);
+      }
       return applyToBackpack(input, data, access.snap.ref, tx);
     });
   },
 );
+
+interface QuintessenceDoc {
+  id: string;
+  name: string;
+  scratched: boolean;
+  sourceMoFEntryId: string;
+  createdAt: string;
+}
+
+function applyToQuintessence(
+  input: UpdateTagInputT,
+  data: Record<string, unknown>,
+  ref: DocumentReference,
+  tx: Transaction,
+): UpdateTagResult {
+  if (input.location.kind !== "quintessence") {
+    throw new Error("applyToQuintessence: wrong location kind");
+  }
+  if (input.patch.kind === "setPreserved") {
+    throw new ActionError(
+      "INVALID_STATE",
+      "Quintessences cannot be preserved (preservation is backpack-only).",
+    );
+  }
+  const { quintessenceId } = input.location;
+  const quintessences: QuintessenceDoc[] = Array.isArray(data.quintessences)
+    ? [...(data.quintessences as QuintessenceDoc[])]
+    : [];
+  const idx = quintessences.findIndex((q) => q.id === quintessenceId);
+  if (idx === -1) {
+    throw new ActionError("NOT_FOUND", "Quintessence not found.");
+  }
+  const q = { ...quintessences[idx]! };
+
+  let result: UpdateTagResult;
+  if (input.patch.kind === "rename") {
+    q.name = input.patch.name;
+    result = { tagId: quintessenceId, newName: input.patch.name };
+  } else {
+    q.scratched = input.patch.scratched;
+    result = { tagId: quintessenceId, scratched: input.patch.scratched };
+  }
+  quintessences[idx] = q;
+
+  tx.update(ref, {
+    quintessences,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return result;
+}
 
 async function applyToFellowship(
   input: UpdateTagInputT,

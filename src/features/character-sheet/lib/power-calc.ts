@@ -199,6 +199,40 @@ export function resolveInvocations(
       };
     }
 
+    if (loc.kind === "quintessence") {
+      if (inv.burn) {
+        return {
+          ok: false,
+          reason: "Quintessences are permanent and cannot be burned.",
+        };
+      }
+      const quintessence = character.quintessences.find(
+        (q) => q.id === loc.quintessenceId,
+      );
+      if (!quintessence) {
+        return {
+          ok: false,
+          reason: `Quintessence ${loc.quintessenceId} not found.`,
+        };
+      }
+      if (quintessence.scratched) {
+        return {
+          ok: false,
+          reason: `Quintessence "${quintessence.name}" is scratched — refresh on camp rest before invoking again.`,
+        };
+      }
+      tags.push({
+        tagId: inv.tagId,
+        location: loc,
+        name: quintessence.name,
+        tagKind: "power",
+        polarity: "helpful",
+        burned: false,
+        contribution: 1,
+      });
+      continue;
+    }
+
     if (loc.kind === "challenge") {
       if (inv.burn) {
         return {

@@ -3,6 +3,8 @@ export { updateTag } from "./update-tag";
 export { burnTag } from "./burn-tag";
 export { unburnTag } from "./unburn-tag";
 export { resolveMomentOfFulfillment } from "./resolve-moment-of-fulfillment";
+export { addQuintessence } from "./add-quintessence";
+export { removeQuintessence } from "./remove-quintessence";
 export { applyStatus } from "./apply-status";
 export { markTrack } from "./mark-track";
 export { updateTheme } from "./update-theme";

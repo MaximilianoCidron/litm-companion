@@ -74,6 +74,11 @@ export const endCampActivity = withAction(
       let improveMarkedOnThemeId: string | null = null;
       let activityNote: string | null = null;
 
+      // Quintessence refresh is rest-only (kept rest-scoped to mirror the
+      // narrative intent: rest = full recovery).
+      let updatedQuintessences = character.quintessences;
+      let quintessencesRefreshed = 0;
+
       if (input.activity.kind === "rest") {
         statusesCleared = character.statuses.filter(
           (s) => s.polarity === "hindering",
@@ -81,6 +86,14 @@ export const endCampActivity = withAction(
         updatedStatuses = character.statuses.filter(
           (s) => s.polarity === "helpful",
         );
+        quintessencesRefreshed = character.quintessences.filter(
+          (q) => q.scratched,
+        ).length;
+        if (quintessencesRefreshed > 0) {
+          updatedQuintessences = character.quintessences.map((q) =>
+            q.scratched ? { ...q, scratched: false } : q,
+          );
+        }
       } else if (input.activity.kind === "reflect") {
         const themeId = input.activity.themeId;
         const themeIdx = updatedThemes.findIndex((t) => t.id === themeId);
@@ -108,6 +121,7 @@ export const endCampActivity = withAction(
         themes: updatedThemes,
         statuses: updatedStatuses,
         backpack: { ...character.backpack, storyTags: updatedStoryTags },
+        quintessences: updatedQuintessences,
         updatedAt: FieldValue.serverTimestamp(),
       });
 

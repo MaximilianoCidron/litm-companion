@@ -8,7 +8,7 @@ import {
   SessionLogEntryId,
   ThemeId,
 } from "./ids";
-import { MomentOfFulfillmentPathSchema } from "./progression";
+import { MomentOfFulfillmentPathSchema } from "./moment-of-fulfillment";
 
 export const SessionLogDetailsSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("annotation") }),
@@ -33,8 +33,9 @@ export const SessionLogDetailsSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("momentOfFulfillment"),
-    chosenPath: MomentOfFulfillmentPathSchema,
-    burnedTagsRestored: z.number().int().min(0),
+    path: MomentOfFulfillmentPathSchema,
+    /** Path-specific human-readable summary appended to the entry text. */
+    pathSnapshot: z.string().max(500),
   }),
   z.object({
     kind: z.literal("themeAdvancement"),

@@ -5,6 +5,7 @@ import {
   CharacterId,
   FellowshipRelationshipId,
   PendingThreatId,
+  QuintessenceId,
   RollId,
   SessionId,
   StatusId,
@@ -26,6 +27,12 @@ export const TagLocationSchema = z.discriminatedUnion("kind", [
     kind: z.literal("challenge"),
     campaignId: CampaignId,
     challengeId: ChallengeId,
+  }),
+  // Quintessence — permanent +1 tag from a `gainQuintessence` MoF.
+  // Scratches on invocation; refreshes on camp rest.
+  z.object({
+    kind: z.literal("quintessence"),
+    quintessenceId: QuintessenceId,
   }),
 ]);
 export type TagLocation = z.infer<typeof TagLocationSchema>;

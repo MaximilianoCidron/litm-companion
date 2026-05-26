@@ -6,7 +6,9 @@ import {
   FellowshipRelationshipId,
   InvitationId,
   LimitId,
+  MomentOfFulfillmentEntryId,
   PendingThreatId,
+  QuintessenceId,
   SessionLogEntryId,
   StatusId,
   TagId,
@@ -46,11 +48,15 @@ export const UpdateTagInput = z.object({
       campaignId: CampaignId,
       tagId: TagId,
     }),
+    z.object({
+      kind: z.literal("quintessence"),
+      quintessenceId: QuintessenceId,
+    }),
   ]),
   patch: z.discriminatedUnion("kind", [
     z.object({
       kind: z.literal("rename"),
-      name: z.string().min(1).max(60),
+      name: z.string().min(1).max(120),
     }),
     z.object({
       kind: z.literal("scratch"),
@@ -80,40 +86,59 @@ export type UnburnTagInput = z.infer<typeof UnburnTagInput>;
 
 export const ResolveMomentOfFulfillmentInput = z.object({
   characterId: CharacterId,
-  choice: z.discriminatedUnion("kind", [
+  resolution: z.discriminatedUnion("path", [
     z.object({
-      kind: z.literal("retire"),
-      description: z.string().max(500).default(""),
+      path: z.literal("retire"),
+      finalWords: z.string().max(2000).default(""),
     }),
     z.object({
-      kind: z.literal("reforge"),
-      newName: z.string().min(1).max(60).optional(),
-      newConcept: z.string().max(120).optional(),
-      description: z.string().max(500).default(""),
+      path: z.literal("reforge"),
+      themeIdToReplace: ThemeId,
+      newThemeName: z.string().min(1).max(120),
+      newThemeType: ThemeTypeSchema,
+      newQuest: z.string().max(200).default(""),
+      narrativeDescription: z.string().max(2000).default(""),
     }),
     z.object({
-      kind: z.literal("gainQuintessence"),
-      text: z.string().min(1).max(120),
-      description: z.string().max(500).default(""),
+      path: z.literal("gainQuintessence"),
+      quintessenceName: z.string().min(1).max(120),
+      narrativeDescription: z.string().max(2000).default(""),
     }),
     z.object({
-      kind: z.literal("shakeWorld"),
-      description: z.string().min(1).max(500),
+      path: z.literal("shakeWorld"),
+      narrativeDescription: z.string().min(1).max(2000),
     }),
     z.object({
-      kind: z.literal("speakWordsEternal"),
-      description: z.string().min(1).max(500),
+      path: z.literal("speakWordsEternal"),
+      themeId: ThemeId,
+      newPowerTagName: z.string().min(1).max(120),
+      narrativeDescription: z.string().max(2000).default(""),
     }),
     z.object({
-      kind: z.literal("unearthTruths"),
-      description: z.string().min(1).max(500),
+      path: z.literal("unearthTruths"),
+      narrativeDescription: z.string().min(1).max(2000),
     }),
   ]),
-  restoreBurnedTags: z.boolean().default(true),
 });
 export type ResolveMomentOfFulfillmentInput = z.infer<
   typeof ResolveMomentOfFulfillmentInput
 >;
+
+// Internal: invoked by the gainQuintessence MoF path AND testable on its
+// own. Not exposed via UI in v1 — no manual quintessence-add affordance.
+export const AddQuintessenceInput = z.object({
+  characterId: CharacterId,
+  name: z.string().min(1).max(120),
+  sourceMoFEntryId: MomentOfFulfillmentEntryId,
+});
+export type AddQuintessenceInput = z.infer<typeof AddQuintessenceInput>;
+
+// Defensive cleanup affordance. Not exposed in v1 UI; ownership-gated.
+export const RemoveQuintessenceInput = z.object({
+  characterId: CharacterId,
+  quintessenceId: QuintessenceId,
+});
+export type RemoveQuintessenceInput = z.infer<typeof RemoveQuintessenceInput>;
 
 export const ApplyStatusInput = z.object({
   characterId: CharacterId,

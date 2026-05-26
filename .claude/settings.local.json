@@ -6,7 +6,11 @@
       "PowerShell(npm i *)",
       "Bash(npx tsc *)",
       "Bash(npx eslint *)",
-      "Bash(npx firebase-tools *)"
+      "Bash(npx firebase-tools *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(cp src/features/character-sheet/lib/__tests__/power-calc.test.ts /tmp/pc.bak)",
+      "Bash(sed -i 's|from \"../power-calc\"|from \"../power-calc.ts\"|; s|from \"../../schemas\"|from \"../../schemas/index.ts\"|' src/features/character-sheet/lib/__tests__/power-calc.test.ts)",
+      "Bash(node --test --experimental-strip-types src/features/character-sheet/lib/__tests__/power-calc.test.ts)"
     ]
   }
 }

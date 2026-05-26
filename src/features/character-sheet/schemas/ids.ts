@@ -17,6 +17,11 @@ export const LimitId = z.string().min(1).brand<"LimitId">();
 export const SessionLogEntryId = z.string().min(1).brand<"SessionLogEntryId">();
 export const PendingThreatId = z.string().min(1).brand<"PendingThreatId">();
 export const SessionId = z.string().min(1).brand<"SessionId">();
+export const QuintessenceId = z.string().min(1).brand<"QuintessenceId">();
+export const MomentOfFulfillmentEntryId = z
+  .string()
+  .min(1)
+  .brand<"MomentOfFulfillmentEntryId">();
 
 export type CharacterId = z.infer<typeof CharacterId>;
 export type ThemeId = z.infer<typeof ThemeId>;
@@ -32,3 +37,7 @@ export type LimitId = z.infer<typeof LimitId>;
 export type SessionLogEntryId = z.infer<typeof SessionLogEntryId>;
 export type PendingThreatId = z.infer<typeof PendingThreatId>;
 export type SessionId = z.infer<typeof SessionId>;
+export type QuintessenceId = z.infer<typeof QuintessenceId>;
+export type MomentOfFulfillmentEntryId = z.infer<
+  typeof MomentOfFulfillmentEntryId
+>;

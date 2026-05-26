@@ -15,7 +15,8 @@ export type TagPolarity =
   | "power"
   | "weakness"
   | "story-helpful"
-  | "story-hindering";
+  | "story-hindering"
+  | "quintessence";
 
 export type TagState = "active" | "scratched" | "burned";
 
@@ -50,6 +51,9 @@ const polarityClasses: Record<TagPolarity, string> = {
   "story-hindering":
     "bg-tag-story-hindering text-tag-weakness-text border border-tag-weakness-base/30 " +
     "dark:bg-tag-weakness-soft-dark dark:text-tag-weakness-text-dark dark:border-tag-weakness-base/50",
+  quintessence:
+    "bg-ember/15 text-ember-text-light border border-ember/40 " +
+    "dark:bg-ember/20 dark:text-ember-text-dark",
 };
 
 const ariaPolarity: Record<TagPolarity, string> = {
@@ -57,10 +61,15 @@ const ariaPolarity: Record<TagPolarity, string> = {
   weakness: "weakness tag",
   "story-helpful": "helpful story tag",
   "story-hindering": "hindering story tag",
+  quintessence: "quintessence",
 };
 
 function PolarityIcon({ polarity }: { polarity: TagPolarity }) {
-  if (polarity === "power" || polarity === "story-helpful") {
+  if (
+    polarity === "power" ||
+    polarity === "story-helpful" ||
+    polarity === "quintessence"
+  ) {
     return <Sparkles className="h-4 w-4" aria-hidden="true" />;
   }
   return <Thorn className="h-4 w-4" aria-hidden="true" />;

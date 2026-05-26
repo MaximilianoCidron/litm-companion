@@ -17,6 +17,7 @@ import type {
   PowerTag,
   Status,
   StoryTag,
+  TagId,
   Theme,
   WeaknessTag,
 } from "../../schemas";
@@ -90,6 +91,7 @@ function character(
   statuses: Status[] = [],
   relationships: FellowshipRelationship[] = [],
   campaignIds: Character["campaignIds"] = [],
+  quintessences: Character["quintessences"] = [],
 ): Character {
   const padded = [
     themes[0] ?? theme(),
@@ -112,14 +114,12 @@ function character(
     themes: padded,
     statuses,
     backpack: { storyTags, notes: "" },
-    progression: {
-      promise: 0,
-      quintessences: [],
-      momentsOfFulfillment: [],
-    },
+    progression: { promise: 0 },
     fellowship: { relationships },
     status: "active",
     avatar: null,
+    quintessences,
+    momentsOfFulfillment: [],
     createdAt: NOW,
     updatedAt: NOW,
   };
@@ -901,5 +901,80 @@ describe("computePower", () => {
     // Pool: helpful max = 3 (s2). Hindering max tier = 4 (challenge "Looming").
     // Net = 3 + (-4) = -1.
     assert.equal(result.total, -1);
+  });
+
+  it("21. invoked quintessence contributes +1", () => {
+    const q: Character["quintessences"][number] = {
+      id: "q-1" as Character["quintessences"][number]["id"],
+      name: "Unyielding Will",
+      scratched: false,
+      sourceMoFEntryId:
+        "mof-1" as Character["quintessences"][number]["sourceMoFEntryId"],
+      createdAt: NOW,
+    };
+    const c = character([], [], [], [], [], [q]);
+    const result = computePower(
+      c,
+      null,
+      new Map(),
+      {
+        tags: [
+          {
+            tagId: q.id as unknown as TagId,
+            location: { kind: "quintessence", quintessenceId: q.id },
+            burn: false,
+          },
+        ],
+        statuses: [],
+      },
+      0,
+    );
+    assert.equal(result.total, 1);
+  });
+
+  it("22. scratched quintessence rejected with 'refresh on camp rest'", () => {
+    const q: Character["quintessences"][number] = {
+      id: "q-1" as Character["quintessences"][number]["id"],
+      name: "Unyielding Will",
+      scratched: true,
+      sourceMoFEntryId:
+        "mof-1" as Character["quintessences"][number]["sourceMoFEntryId"],
+      createdAt: NOW,
+    };
+    const c = character([], [], [], [], [], [q]);
+    const res = resolveInvocations(c, null, new Map(), {
+      tags: [
+        {
+          tagId: q.id as unknown as TagId,
+          location: { kind: "quintessence", quintessenceId: q.id },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.match(res.reason, /refresh on camp rest/);
+    }
+  });
+
+  it("23. missing quintessence id rejected with 'not found'", () => {
+    const c = character([], [], [], [], [], []);
+    const missingId =
+      "q-missing" as Character["quintessences"][number]["id"];
+    const res = resolveInvocations(c, null, new Map(), {
+      tags: [
+        {
+          tagId: missingId as unknown as TagId,
+          location: { kind: "quintessence", quintessenceId: missingId },
+          burn: false,
+        },
+      ],
+      statuses: [],
+    });
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.match(res.reason, /not found/i);
+    }
   });
 });

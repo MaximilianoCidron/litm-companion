@@ -70,9 +70,11 @@ export function buildBlankCharacter(
     ],
     statuses: [],
     backpack: { storyTags: [], notes: "" },
-    progression: { promise: 0, quintessences: [], momentsOfFulfillment: [] },
+    progression: { promise: 0 },
     fellowship: { relationships: [] },
     status: "active",
     avatar: null,
+    quintessences: [],
+    momentsOfFulfillment: [],
   };
 }

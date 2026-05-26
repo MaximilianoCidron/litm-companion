@@ -13,6 +13,8 @@ export {
   SessionLogEntryId,
   PendingThreatId,
   SessionId,
+  QuintessenceId,
+  MomentOfFulfillmentEntryId,
 } from "./ids";
 
 export {
@@ -42,16 +44,20 @@ export type { Status } from "./status";
 export { BackpackSchema } from "./backpack";
 export type { Backpack } from "./backpack";
 
+export { ProgressionSchema } from "./progression";
+export type { Progression } from "./progression";
+
+export { QuintessenceSchema } from "./quintessence";
+export type { Quintessence } from "./quintessence";
+
 export {
-  ProgressionSchema,
   MomentOfFulfillmentPathSchema,
   MomentOfFulfillmentEntrySchema,
-} from "./progression";
+} from "./moment-of-fulfillment";
 export type {
-  Progression,
   MomentOfFulfillmentPath,
   MomentOfFulfillmentEntry,
-} from "./progression";
+} from "./moment-of-fulfillment";
 
 export { IdentitySchema } from "./identity";
 export type { Identity } from "./identity";
@@ -223,6 +229,8 @@ export {
   GetCampaignCleanupPreviewInput,
   SetCharacterAvatarInput,
   RemoveCharacterAvatarInput,
+  AddQuintessenceInput,
+  RemoveQuintessenceInput,
 } from "./inputs";
 export type {
   TagInvocationInput,

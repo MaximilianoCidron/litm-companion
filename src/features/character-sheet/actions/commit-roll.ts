@@ -387,9 +387,28 @@ export const commitRoll = withAction(
         }
       }
 
+      // Quintessences: scratch each invoked quintessence in the same
+      // transaction. Refresh happens on camp rest via end-camp-activity.
+      // Quintessences cannot be burned, so we only flip `scratched`.
+      const invokedQuintessenceIds = new Set(
+        input.invocations.tags
+          .filter((t) => t.location.kind === "quintessence")
+          .map((t) =>
+            t.location.kind === "quintessence" ? t.location.quintessenceId : "",
+          )
+          .filter((id) => id.length > 0),
+      );
+      const updatedQuintessences =
+        invokedQuintessenceIds.size > 0
+          ? character.quintessences.map((q) =>
+              invokedQuintessenceIds.has(q.id) ? { ...q, scratched: true } : q,
+            )
+          : character.quintessences;
+
       tx.update(charRef, {
         themes: updatedThemes,
         "backpack.storyTags": updatedStoryTags,
+        quintessences: updatedQuintessences,
         updatedAt: FieldValue.serverTimestamp(),
       });
 

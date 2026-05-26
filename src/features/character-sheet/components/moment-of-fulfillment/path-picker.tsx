@@ -1,53 +1,52 @@
 "use client";
-
 import { cn } from "@/shared/lib/cn";
 import type { MomentOfFulfillmentPath } from "../../schemas";
-import { PATHS } from "./helpers";
+import { PATH_INFO } from "./path-info";
 
 interface PathPickerProps {
   value: MomentOfFulfillmentPath | null;
   onChange: (next: MomentOfFulfillmentPath) => void;
 }
 
+const PATHS = Object.keys(PATH_INFO) as MomentOfFulfillmentPath[];
+
 export function PathPicker({ value, onChange }: PathPickerProps) {
   return (
-    <div
+    <ul
       role="radiogroup"
-      aria-label="Pick a path"
-      className="flex flex-col gap-2"
+      aria-label="Choose a Moment of Fulfillment path"
+      className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
     >
-      {PATHS.map(({ key, label, description, Icon }) => {
-        const active = value === key;
+      {PATHS.map((path) => {
+        const info = PATH_INFO[path];
+        const Icon = info.icon;
+        const active = value === path;
         return (
-          <button
-            key={key}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(key)}
-            className={cn(
-              "flex items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember",
-              active
-                ? "border-ember bg-ember/10"
-                : "border-mist-light bg-parchment-elevated hover:bg-parchment-soft dark:border-mist-dark dark:bg-ink-elevated dark:hover:bg-ink-soft",
-            )}
-          >
-            <Icon
-              className="mt-0.5 h-5 w-5 shrink-0 text-ember"
-              aria-hidden="true"
-            />
-            <div className="flex flex-col gap-0.5">
-              <span className="font-display text-base text-ink-base dark:text-parchment-base">
-                {label}
+          <li key={path}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(path)}
+              className={cn(
+                "flex h-full w-full flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember",
+                active
+                  ? "border-ember bg-ember/10 text-ink-base dark:text-parchment-base"
+                  : "border-mist-light bg-parchment-elevated hover:border-ember/40 dark:border-mist-dark dark:bg-ink-elevated",
+              )}
+            >
+              <span className="inline-flex items-center gap-2 font-display text-sm">
+                <Icon className="h-4 w-4 text-ember" aria-hidden="true" />
+                {info.label}
               </span>
-              <span className="text-sm text-ink-muted dark:text-parchment-muted">
-                {description}
+              <span className="text-xs text-ink-muted dark:text-parchment-muted">
+                {info.description}
               </span>
-            </div>
-          </button>
+            </button>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

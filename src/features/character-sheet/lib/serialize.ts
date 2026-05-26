@@ -91,13 +91,147 @@ export function firestoreToCharacter(snap: SnapshotLike): Character {
   if (!data) {
     throw new Error(`Character ${snap.id} not found.`);
   }
+  const migrated = migrateQuintessencesAndMoF(data, snap.id);
   return CharacterSchema.parse({
     ...data,
     id: snap.id,
     fellowship: migrateRelationships(data.fellowship),
+    progression: migrated.progression,
+    quintessences: migrated.quintessences,
+    momentsOfFulfillment: migrated.momentsOfFulfillment,
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt),
   });
+}
+
+/**
+ * Legacy → current shape migration for Quintessences + Moments of
+ * Fulfillment. Pre-refactor docs stored quintessences as `string[]` and
+ * MoF entries as a flat `{id, chosenPath, description, ...}` shape, both
+ * nested under `progression`. They've since moved to top-level character
+ * fields with structured shapes. This helper pulls them out at parse time
+ * so write paths only ever touch the new fields.
+ *
+ * Writes from this codebase always store the new shape under the top-level
+ * fields. If both old and new exist on a doc (mid-flight), the new fields
+ * win — legacy is treated as the seed-only fallback.
+ */
+function migrateQuintessencesAndMoF(
+  data: Record<string, unknown>,
+  charId: string,
+): {
+  progression: { promise: number };
+  quintessences: unknown[];
+  momentsOfFulfillment: unknown[];
+} {
+  const progressionRaw = (data.progression ?? {}) as Record<string, unknown>;
+  const promise =
+    typeof progressionRaw.promise === "number" ? progressionRaw.promise : 0;
+
+  const topQuintessences = Array.isArray(data.quintessences)
+    ? (data.quintessences as unknown[])
+    : null;
+  const legacyQuintessences = Array.isArray(progressionRaw.quintessences)
+    ? (progressionRaw.quintessences as unknown[])
+    : null;
+
+  const quintessences: unknown[] = (() => {
+    if (topQuintessences && topQuintessences.length > 0) return topQuintessences;
+    if (legacyQuintessences === null) return [];
+    // Legacy string[] → synthesize structured objects. The deterministic
+    // id `${charId}:legacy-quintessence:<index>` keeps Firestore-rule diffs
+    // stable across reads and ties scratched-state migrations (none in
+    // legacy) to the original ordinal.
+    return legacyQuintessences.map((entry, idx) => {
+      if (typeof entry === "string") {
+        return {
+          id: `${charId}:legacy-quintessence:${idx}`,
+          name: entry,
+          scratched: false,
+          sourceMoFEntryId: `${charId}:legacy-source:${idx}`,
+          createdAt: "1970-01-01T00:00:00.000Z",
+        };
+      }
+      return entry; // Already structured (shouldn't happen via this branch).
+    });
+  })();
+
+  const topMoF = Array.isArray(data.momentsOfFulfillment)
+    ? (data.momentsOfFulfillment as unknown[])
+    : null;
+  const legacyMoF = Array.isArray(progressionRaw.momentsOfFulfillment)
+    ? (progressionRaw.momentsOfFulfillment as unknown[])
+    : null;
+
+  const momentsOfFulfillment: unknown[] = (() => {
+    if (topMoF && topMoF.length > 0) return topMoF;
+    if (legacyMoF === null) return [];
+    // Legacy flat shape: `{id, chosenPath, description, burnedTagsRestored,
+    // completedAt}` → discriminated entry. Most paths collapse to a
+    // narrativeDescription field; retire collapses to finalWords. Reforge
+    // and speakWordsEternal lack the path-specific snapshot fields they
+    // now require (newThemeId etc.) — those legacy entries land in the
+    // path-specific schema with empty/synthesized values so parse still
+    // succeeds. UI surfaces these as best-effort summaries.
+    return legacyMoF.map((entry) => {
+      const e = (entry ?? {}) as Record<string, unknown>;
+      const id = (typeof e.id === "string" && e.id) || `legacy-mof:${Math.random()}`;
+      const description = typeof e.description === "string" ? e.description : "";
+      const resolvedAt =
+        typeof e.completedAt === "string"
+          ? e.completedAt
+          : "1970-01-01T00:00:00.000Z";
+      const path = typeof e.chosenPath === "string" ? e.chosenPath : "shakeWorld";
+      switch (path) {
+        case "retire":
+          return { id, path, resolvedAt, finalWords: description };
+        case "reforge":
+          return {
+            id,
+            path,
+            resolvedAt,
+            replacedThemeName: "",
+            newThemeId: `${id}:legacy-theme`,
+            newThemeName: "",
+            narrativeDescription: description,
+          };
+        case "gainQuintessence":
+          return {
+            id,
+            path,
+            resolvedAt,
+            quintessenceName: description || "Unnamed",
+            narrativeDescription: "",
+          };
+        case "speakWordsEternal":
+          return {
+            id,
+            path,
+            resolvedAt,
+            themeId: `${id}:legacy-theme`,
+            themeName: "",
+            newPowerTagName: description || "Unnamed",
+            newPowerTagId: `${id}:legacy-tag`,
+            narrativeDescription: "",
+          };
+        case "unearthTruths":
+        case "shakeWorld":
+        default:
+          return {
+            id,
+            path,
+            resolvedAt,
+            narrativeDescription: description || "—",
+          };
+      }
+    });
+  })();
+
+  return {
+    progression: { promise },
+    quintessences,
+    momentsOfFulfillment,
+  };
 }
 
 /**

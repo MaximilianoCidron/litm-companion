@@ -73,8 +73,8 @@ export function HeroPage({ character }: { character: Character }) {
   const { identity, progression, statuses, backpack, status: charStatus } =
     character;
   const isRetired = charStatus === "retired";
-  const hasMoments = progression.momentsOfFulfillment.length > 0;
-  const hasQuintessences = progression.quintessences.length > 0;
+  const hasMoments = character.momentsOfFulfillment.length > 0;
+  const hasQuintessences = character.quintessences.length > 0;
   const hasStatuses = statuses.length > 0;
   const hasStoryTags = backpack.storyTags.length > 0;
   const hasNotes = backpack.notes.trim().length > 0;
@@ -110,9 +110,10 @@ export function HeroPage({ character }: { character: Character }) {
         {hasQuintessences ? (
           <>
             <Text style={styles.sectionLabel}>Quintessences</Text>
-            {progression.quintessences.map((q, i) => (
-              <Text key={i} style={styles.bullet}>
-                • {q}
+            {character.quintessences.map((q) => (
+              <Text key={q.id} style={styles.bullet}>
+                • {q.name}
+                {q.scratched ? " (scratched)" : ""}
               </Text>
             ))}
           </>
@@ -121,7 +122,7 @@ export function HeroPage({ character }: { character: Character }) {
         {hasMoments ? (
           <>
             <Text style={styles.sectionLabel}>Moments of Fulfillment</Text>
-            <MomentHistoryList entries={progression.momentsOfFulfillment} />
+            <MomentHistoryList entries={character.momentsOfFulfillment} />
           </>
         ) : null}
 

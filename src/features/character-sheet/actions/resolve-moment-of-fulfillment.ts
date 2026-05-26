@@ -3,29 +3,37 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/shared/firebase/admin";
 import { ActionError, withAction } from "@/shared/auth";
 import {
+  MomentOfFulfillmentEntryId,
+  QuintessenceId,
   ResolveMomentOfFulfillmentInput,
-  type Character,
+  TagId,
   type MomentOfFulfillmentEntry,
+  type MomentOfFulfillmentPath,
+  type Quintessence,
 } from "../schemas";
 import { requireCharacterOwnership } from "../lib/access";
 import { firestoreToCharacter } from "../lib/serialize";
 import { buildBlankTheme } from "../lib/character-factory";
-import { buildSummaryMessage } from "../lib/moment-of-fulfillment";
 import {
   getAuthorDisplayName,
   resolveActiveSessionId,
-  summarizeMomentOfFulfillment,
   writeLogEntry,
 } from "../lib/session-log";
 
-const QUINTESSENCE_LIMIT = 20;
-
 interface ResolveMomentOfFulfillmentResult {
-  path: ResolveMomentOfFulfillmentInput["choice"]["kind"];
-  burnedTagsRestored: number;
+  path: MomentOfFulfillmentPath;
   entryId: string;
-  summaryMessage: string;
+  shouldRedirectToDashboard: boolean;
 }
+
+const PATH_VERBS: Record<MomentOfFulfillmentPath, string> = {
+  retire: "retired from the story",
+  reforge: "reforged a theme",
+  gainQuintessence: "crystallized a quintessence",
+  shakeWorld: "shook the world",
+  speakWordsEternal: "spoke words eternal",
+  unearthTruths: "unearthed a truth",
+};
 
 export const resolveMomentOfFulfillment = withAction(
   ResolveMomentOfFulfillmentInput,
@@ -56,153 +64,208 @@ export const resolveMomentOfFulfillment = withAction(
       if (character.progression.promise !== 5) {
         throw new ActionError(
           "INVALID_STATE",
-          "Your Promise track isn't full yet.",
+          "Promise must be fulfilled (5/5) before a Moment of Fulfillment.",
         );
       }
 
-      const choice = input.choice;
-      const entry: MomentOfFulfillmentEntry = {
-        id: crypto.randomUUID(),
-        chosenPath: choice.kind,
-        description: "description" in choice ? choice.description : "",
-        burnedTagsRestored: 0,
-        completedAt: new Date().toISOString(),
+      const resolvedAt = new Date().toISOString();
+      const entryId = MomentOfFulfillmentEntryId.parse(crypto.randomUUID());
+
+      const update: Record<string, unknown> = {
+        updatedAt: FieldValue.serverTimestamp(),
       };
+      let pathSnapshot: string;
+      let newEntry: MomentOfFulfillmentEntry;
+      // Bind to a local so TypeScript's narrowing survives across the switch
+      // body. (Discriminated narrowing on `input.resolution.path` doesn't
+      // propagate to deeper property accesses in some TS configurations.)
+      const resolution = input.resolution;
 
-      // Working copies — mutated below by path branch + burned restoration.
-      let nextThemes = character.themes.map((t) => ({
-        ...t,
-        powerTags: t.powerTags.map((p) => ({ ...p })),
-        tracks: { ...t.tracks },
-      })) as Character["themes"];
-      let nextStatuses = character.statuses;
-      let nextBackpack = character.backpack;
-      let nextIdentity = character.identity;
-      let nextQuintessences = character.progression.quintessences;
-      let nextStatus: Character["status"] = character.status;
-      let didReforge = false;
-
-      switch (choice.kind) {
-        case "retire":
-          nextStatus = "retired";
-          break;
-        case "reforge": {
-          didReforge = true;
-          nextThemes = [
-            buildBlankTheme(),
-            buildBlankTheme(),
-            buildBlankTheme(),
-            buildBlankTheme(),
-          ] as Character["themes"];
-          nextStatuses = [];
-          nextBackpack = { storyTags: [], notes: "" };
-          if (choice.newName) {
-            nextIdentity = {
-              ...character.identity,
-              name: choice.newName,
-              concept: choice.newConcept ?? character.identity.concept,
-            };
-          } else if (choice.newConcept !== undefined) {
-            nextIdentity = {
-              ...character.identity,
-              concept: choice.newConcept,
-            };
-          }
+      switch (resolution.path) {
+        case "retire": {
+          newEntry = {
+            id: entryId,
+            path: "retire",
+            resolvedAt,
+            finalWords: resolution.finalWords,
+          };
+          update.status = "retired";
+          // Retire freezes promise at 5 — explicit "ended" signal.
+          update.momentsOfFulfillment = [
+            ...character.momentsOfFulfillment,
+            newEntry,
+          ];
+          pathSnapshot = "retired from the story";
           break;
         }
+
+        case "reforge": {
+          const themeIndex = character.themes.findIndex(
+            (t) => t.id === resolution.themeIdToReplace,
+          );
+          if (themeIndex < 0) {
+            throw new ActionError("NOT_FOUND", "Theme to reforge not found.");
+          }
+          const oldTheme = character.themes[themeIndex]!;
+          const newTheme = buildBlankTheme({
+            name: resolution.newThemeName,
+            type: resolution.newThemeType,
+            quest: resolution.newQuest,
+          });
+
+          const newThemes = [...character.themes];
+          newThemes[themeIndex] = newTheme;
+
+          newEntry = {
+            id: entryId,
+            path: "reforge",
+            resolvedAt,
+            replacedThemeName: oldTheme.name || "Unnamed theme",
+            newThemeId: newTheme.id,
+            newThemeName: newTheme.name,
+            narrativeDescription: resolution.narrativeDescription,
+          };
+          update.themes = newThemes;
+          update.progression = { promise: 0 };
+          update.momentsOfFulfillment = [
+            ...character.momentsOfFulfillment,
+            newEntry,
+          ];
+          pathSnapshot = `reforged "${oldTheme.name || "Unnamed theme"}" into "${newTheme.name}"`;
+          break;
+        }
+
         case "gainQuintessence": {
-          if (character.progression.quintessences.length >= QUINTESSENCE_LIMIT) {
+          if (character.quintessences.length >= 20) {
             throw new ActionError(
               "INVALID_STATE",
               "Quintessence list is at the limit.",
             );
           }
-          nextQuintessences = [
-            ...character.progression.quintessences,
-            choice.text,
+          const newQuintessence: Quintessence = {
+            id: QuintessenceId.parse(crypto.randomUUID()),
+            name: resolution.quintessenceName,
+            scratched: false,
+            sourceMoFEntryId: entryId,
+            createdAt: resolvedAt,
+          };
+          newEntry = {
+            id: entryId,
+            path: "gainQuintessence",
+            resolvedAt,
+            quintessenceName: resolution.quintessenceName,
+            narrativeDescription: resolution.narrativeDescription,
+          };
+          update.quintessences = [...character.quintessences, newQuintessence];
+          update.progression = { promise: 0 };
+          update.momentsOfFulfillment = [
+            ...character.momentsOfFulfillment,
+            newEntry,
           ];
+          pathSnapshot = `crystallized "${resolution.quintessenceName}"`;
           break;
         }
-        case "shakeWorld":
-        case "speakWordsEternal":
-        case "unearthTruths":
-          // No mechanical effect beyond the history entry.
+
+        case "shakeWorld": {
+          newEntry = {
+            id: entryId,
+            path: "shakeWorld",
+            resolvedAt,
+            narrativeDescription: resolution.narrativeDescription,
+          };
+          update.progression = { promise: 0 };
+          update.momentsOfFulfillment = [
+            ...character.momentsOfFulfillment,
+            newEntry,
+          ];
+          pathSnapshot = "shook the world";
           break;
+        }
+
+        case "speakWordsEternal": {
+          const themeIndex = character.themes.findIndex(
+            (t) => t.id === resolution.themeId,
+          );
+          if (themeIndex < 0) {
+            throw new ActionError("NOT_FOUND", "Target theme not found.");
+          }
+          const targetTheme = character.themes[themeIndex]!;
+          const newPowerTagId = TagId.parse(crypto.randomUUID());
+          const newPowerTag = {
+            id: newPowerTagId,
+            name: resolution.newPowerTagName,
+            burned: false,
+            scratched: false,
+          };
+          const updatedTheme = {
+            ...targetTheme,
+            powerTags: [...targetTheme.powerTags, newPowerTag],
+          };
+          const newThemes = [...character.themes];
+          newThemes[themeIndex] = updatedTheme;
+
+          newEntry = {
+            id: entryId,
+            path: "speakWordsEternal",
+            resolvedAt,
+            themeId: targetTheme.id,
+            themeName: targetTheme.name || "Unnamed theme",
+            newPowerTagName: resolution.newPowerTagName,
+            newPowerTagId,
+            narrativeDescription: resolution.narrativeDescription,
+          };
+          update.themes = newThemes;
+          update.progression = { promise: 0 };
+          update.momentsOfFulfillment = [
+            ...character.momentsOfFulfillment,
+            newEntry,
+          ];
+          pathSnapshot = `spoke "${resolution.newPowerTagName}" into "${targetTheme.name || "Unnamed theme"}"`;
+          break;
+        }
+
+        case "unearthTruths": {
+          newEntry = {
+            id: entryId,
+            path: "unearthTruths",
+            resolvedAt,
+            narrativeDescription: resolution.narrativeDescription,
+          };
+          update.progression = { promise: 0 };
+          update.momentsOfFulfillment = [
+            ...character.momentsOfFulfillment,
+            newEntry,
+          ];
+          pathSnapshot = "unearthed a truth";
+          break;
+        }
       }
 
-      // Burned-tag restoration runs AFTER reforge. After reforge the themes
-      // are fresh (no burned tags), so the count is 0 — no-op by construction.
-      if (input.restoreBurnedTags && !didReforge) {
-        let restored = 0;
-        nextThemes = nextThemes.map((t) => ({
-          ...t,
-          powerTags: t.powerTags.map((p) => {
-            if (p.burned) {
-              restored += 1;
-              return { ...p, burned: false, scratched: false };
-            }
-            return p;
-          }),
-        })) as Character["themes"];
-        entry.burnedTagsRestored = restored;
-      }
-
-      const updatedProgression: Character["progression"] = {
-        promise: 0,
-        quintessences: nextQuintessences,
-        momentsOfFulfillment: [
-          ...character.progression.momentsOfFulfillment,
-          entry,
-        ],
-      };
-
-      tx.update(snap.ref, {
-        themes: nextThemes,
-        statuses: nextStatuses,
-        backpack: nextBackpack,
-        identity: nextIdentity,
-        progression: updatedProgression,
-        status: nextStatus,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      tx.update(snap.ref, update);
 
       if (logCampaignId) {
+        const verb = PATH_VERBS[input.resolution.path];
+        const characterName = character.identity.name || "A hero";
         writeLogEntry(tx, {
           campaignId: logCampaignId,
           authorUid: ctx.uid,
           authorName: getAuthorDisplayName(ctx),
           subjectCharacterId: input.characterId,
-          subjectCharacterName: nextIdentity.name,
-          text: summarizeMomentOfFulfillment(
-            nextIdentity.name || "A hero",
-            choice.kind,
-            entry.burnedTagsRestored,
-          ),
+          subjectCharacterName: characterName,
+          text: `${characterName} ${verb}.`,
           details: {
             kind: "momentOfFulfillment",
-            chosenPath: choice.kind,
-            burnedTagsRestored: entry.burnedTagsRestored,
+            path: input.resolution.path,
+            pathSnapshot,
           },
           sessionId,
         });
-      } else {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[session-log] MoF resolution outside campaign — no log entry emitted",
-        );
       }
 
       return {
-        path: choice.kind,
-        burnedTagsRestored: entry.burnedTagsRestored,
-        entryId: entry.id,
-        summaryMessage: buildSummaryMessage(
-          {
-            kind: choice.kind,
-            text: choice.kind === "gainQuintessence" ? choice.text : undefined,
-          },
-          entry.burnedTagsRestored,
-        ),
+        path: input.resolution.path,
+        entryId,
+        shouldRedirectToDashboard: input.resolution.path === "retire",
       };
     });
   },
