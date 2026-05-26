@@ -7,6 +7,8 @@ import { UserSettingsProvider } from "@/features/character-sheet/components/User
 import { ThemeApplier } from "@/features/character-sheet/components/ThemeApplier";
 import { AppHeaderContainer } from "@/features/character-sheet/components/AppHeaderContainer";
 import { AuthSyncGuard } from "@/features/character-sheet/components/AuthSyncGuard";
+import { InboxProvider } from "@/features/character-sheet/components/inbox/inbox-provider";
+import { getMyCampaigns } from "@/features/character-sheet/lib/queries";
 
 /**
  * Server-side session guard for the authenticated app shell.
@@ -31,15 +33,24 @@ export default async function AppShellLayout({
     photoURL: (claims.picture as string | undefined) ?? null,
   };
 
+  const campaignSummaries = await getMyCampaigns(user.uid);
+  const inboxCampaigns = campaignSummaries.map((c) => ({
+    id: c.id,
+    gmUid: c.gmUid,
+    name: c.name,
+  }));
+
   return (
     <UserSettingsProvider uid={user.uid}>
       <AuthSyncGuard serverUid={user.uid} />
       <ThemeApplier />
-      <div className="flex min-h-dvh flex-col">
-        <HeartbeatLoop />
-        <AppHeaderContainer user={user} signOut={signOutAction} />
-        <div className="flex-1">{children}</div>
-      </div>
+      <InboxProvider uid={user.uid} campaigns={inboxCampaigns}>
+        <div className="flex min-h-dvh flex-col">
+          <HeartbeatLoop />
+          <AppHeaderContainer user={user} signOut={signOutAction} />
+          <div className="flex-1">{children}</div>
+        </div>
+      </InboxProvider>
     </UserSettingsProvider>
   );
 }

@@ -289,6 +289,7 @@ export const UpdateUserSettingsInput = z.object({
     confirmBeforeRolling: z.boolean().optional(),
     showInvitationToasts: z.boolean().optional(),
     showPendingThreatToasts: z.boolean().optional(),
+    lastInboxOpenedAt: z.string().datetime().nullable().optional(),
   }),
 });
 export type UpdateUserSettingsInput = z.infer<typeof UpdateUserSettingsInput>;

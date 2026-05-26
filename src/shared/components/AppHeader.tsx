@@ -30,6 +30,12 @@ interface AppHeaderProps {
   characterName?: string;
   themePreference: ThemePreference;
   onSetTheme: (next: ThemePreference) => void;
+  /**
+   * Slot rendered between the brand row and the user menu — e.g. the inbox
+   * bell. Lives here as a slot (not a direct import) because `shared/`
+   * cannot import from `features/` per the architectural boundary.
+   */
+  leftOfMenu?: React.ReactNode;
 }
 
 export function AppHeader({
@@ -38,6 +44,7 @@ export function AppHeader({
   characterName,
   themePreference,
   onSetTheme,
+  leftOfMenu,
 }: AppHeaderProps) {
   const pathname = usePathname();
   const inCharacterRoute = /^\/characters\/[^/]+/.test(pathname ?? "");
@@ -53,12 +60,15 @@ export function AppHeader({
         </Link>
         {inCharacterRoute ? <Breadcrumb characterName={characterName} /> : null}
       </div>
-      <UserMenu
-        user={user}
-        signOut={signOut}
-        themePreference={themePreference}
-        onSetTheme={onSetTheme}
-      />
+      <div className="flex items-center gap-1.5">
+        {leftOfMenu}
+        <UserMenu
+          user={user}
+          signOut={signOut}
+          themePreference={themePreference}
+          onSetTheme={onSetTheme}
+        />
+      </div>
     </header>
   );
 }

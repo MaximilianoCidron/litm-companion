@@ -15,6 +15,12 @@ export const UserSettingsSchema = z.object({
   showInvitationToasts: z.boolean().default(true),
   showPendingThreatToasts: z.boolean().default(true),
 
+  // ISO timestamp of the last time the user opened the notification inbox.
+  // Items with `createdAt > lastInboxOpenedAt` are considered "new". Pre-
+  // feature docs parse as null via the default; first inbox open writes the
+  // first timestamp.
+  lastInboxOpenedAt: z.string().datetime().nullable().default(null),
+
   updatedAt: z.string().datetime().nullable().default(null),
 });
 export type UserSettings = z.infer<typeof UserSettingsSchema>;

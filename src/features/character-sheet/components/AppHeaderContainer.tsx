@@ -2,6 +2,7 @@
 import { AppHeader } from "@/shared/components/AppHeader";
 import type { AppUser, ThemePreference } from "@/shared/components/UserMenu";
 import { updateUserSettings } from "../actions";
+import { InboxBell } from "./inbox/inbox-bell";
 import { useUserSettings } from "./UserSettingsProvider";
 
 interface AppHeaderContainerProps {
@@ -23,6 +24,7 @@ export function AppHeaderContainer({
       signOut={signOut}
       themePreference={themePreference}
       onSetTheme={onSetTheme}
+      leftOfMenu={<InboxBell />}
     />
   );
 }
