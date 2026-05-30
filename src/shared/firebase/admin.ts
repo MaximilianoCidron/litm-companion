@@ -30,9 +30,14 @@ function getAdminApp(): App {
     return existing;
   }
   const service = loadServiceAccount();
+  // Align with the client bucket. Modern Firebase projects use the
+  // `.firebasestorage.app` bucket, not the legacy `.appspot.com`; falling back
+  // to the latter makes Admin Storage hit a non-existent bucket (404). Reuse
+  // the same NEXT_PUBLIC bucket the client SDK uses (readable server-side).
   const storageBucket =
     process.env.FIREBASE_ADMIN_STORAGE_BUCKET ??
-    `${service.projectId}.appspot.com`;
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ??
+    `${service.projectId}.firebasestorage.app`;
   cachedApp = initializeApp({
     credential: cert(service),
     storageBucket,

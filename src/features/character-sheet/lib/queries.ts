@@ -1,7 +1,11 @@
 import "server-only";
 import { FieldPath } from "firebase-admin/firestore";
-import { getAdminDb } from "@/shared/firebase/admin";
+import { getAdminDb, getAdminStorage } from "@/shared/firebase/admin";
 import { ActionError } from "@/shared/auth";
+import {
+  parseCharacterIdFromAvatarPath,
+  parseStoragePathFromUrl,
+} from "@/shared/lib/storage-paths";
 import {
   CampaignId,
   CampaignSummarySchema,
@@ -946,4 +950,161 @@ export async function getPendingAllocations(
     });
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Storage usage — per-user Firebase Storage accounting + orphan detection.
+// Storage is the source of truth (no Firestore mirror). A file is an "orphan"
+// when its path isn't referenced by the owning character's `avatar` field.
+// ---------------------------------------------------------------------------
+
+export type StorageFileEntry = {
+  path: string;
+  bytes: number;
+  contentType: string;
+  timeCreated: string;
+  /** True when this file isn't referenced by the character's current avatar. */
+  isOrphan: boolean;
+};
+
+export type CharacterStorageUsage = {
+  characterId: string;
+  /** null when the character doc is missing in Firestore (defensive). */
+  characterName: string | null;
+  bytes: number;
+  fileCount: number;
+  files: StorageFileEntry[];
+  /** True when EVERY file under this character is unreferenced. */
+  isOrphan: boolean;
+};
+
+export type UserStorageUsage = {
+  uid: string;
+  totalBytes: number;
+  totalFileCount: number;
+  byCharacter: CharacterStorageUsage[];
+  orphanBytes: number;
+  orphanFileCount: number;
+  /** Files that don't fit the user/character/avatar path shape. Counted as orphans. */
+  unrecognizedFiles: StorageFileEntry[];
+};
+
+type RawStorageFile = Omit<StorageFileEntry, "isOrphan">;
+
+/** Minimal shape we read off a raw character doc — avoids parsing the full schema. */
+type CharacterAvatarRefs = {
+  avatar?: { mainUrl?: string; thumbUrl?: string } | null;
+  identity?: { name?: string };
+};
+
+/**
+ * Per-user Storage usage with orphan detection. Cross-checks every stored file
+ * against the owning character's `avatar.mainUrl` / `avatar.thumbUrl`.
+ *
+ * Cost: 1 Storage list + one Firestore read per distinct character with files.
+ * The `uid` MUST come from the verified session — there is no surface for one
+ * user to read another's storage.
+ */
+export async function getUserStorageUsage(
+  uid: string,
+): Promise<UserStorageUsage> {
+  const bucket = getAdminStorage().bucket();
+  const [files] = await bucket.getFiles({ prefix: `users/${uid}/` });
+
+  // Group raw files by characterId via path parsing.
+  const filesByCharacter = new Map<string, RawStorageFile[]>();
+  const unrecognizedRaw: RawStorageFile[] = [];
+
+  for (const file of files) {
+    const raw: RawStorageFile = {
+      path: file.name,
+      bytes: Number(file.metadata.size ?? 0),
+      contentType: String(file.metadata.contentType ?? "application/octet-stream"),
+      timeCreated: String(file.metadata.timeCreated ?? ""),
+    };
+    const charId = parseCharacterIdFromAvatarPath(file.name);
+    if (charId === null) {
+      unrecognizedRaw.push(raw);
+      continue;
+    }
+    const list = filesByCharacter.get(charId) ?? [];
+    list.push(raw);
+    filesByCharacter.set(charId, list);
+  }
+
+  // Cross-check vs Firestore — one read per character, mark each file inline.
+  const db = getAdminDb();
+  const byCharacter: CharacterStorageUsage[] = [];
+
+  for (const [characterId, rawFiles] of filesByCharacter.entries()) {
+    const snap = await db.collection("characters").doc(characterId).get();
+    const data = snap.exists
+      ? (snap.data() as CharacterAvatarRefs | undefined)
+      : undefined;
+
+    const referencedPaths = new Set<string>();
+    const avatar = data?.avatar;
+    if (avatar) {
+      const main = avatar.mainUrl ? parseStoragePathFromUrl(avatar.mainUrl) : null;
+      const thumb = avatar.thumbUrl
+        ? parseStoragePathFromUrl(avatar.thumbUrl)
+        : null;
+      if (main) referencedPaths.add(main);
+      if (thumb) referencedPaths.add(thumb);
+    }
+
+    const charFiles: StorageFileEntry[] = rawFiles.map((f) => ({
+      ...f,
+      isOrphan: !referencedPaths.has(f.path),
+    }));
+
+    const name =
+      typeof data?.identity?.name === "string" ? data.identity.name : null;
+
+    byCharacter.push({
+      characterId,
+      characterName: name,
+      bytes: charFiles.reduce((sum, f) => sum + f.bytes, 0),
+      fileCount: charFiles.length,
+      files: charFiles,
+      isOrphan: charFiles.every((f) => f.isOrphan),
+    });
+  }
+
+  // Unrecognized files shouldn't exist at all — always orphans.
+  const unrecognizedFiles: StorageFileEntry[] = unrecognizedRaw.map((f) => ({
+    ...f,
+    isOrphan: true,
+  }));
+
+  const totalBytes =
+    byCharacter.reduce((s, c) => s + c.bytes, 0) +
+    unrecognizedFiles.reduce((s, f) => s + f.bytes, 0);
+  const totalFileCount =
+    byCharacter.reduce((s, c) => s + c.fileCount, 0) + unrecognizedFiles.length;
+
+  let orphanBytes = 0;
+  let orphanFileCount = 0;
+  for (const c of byCharacter) {
+    for (const f of c.files) {
+      if (f.isOrphan) {
+        orphanBytes += f.bytes;
+        orphanFileCount += 1;
+      }
+    }
+  }
+  for (const f of unrecognizedFiles) {
+    orphanBytes += f.bytes;
+    orphanFileCount += 1;
+  }
+
+  return {
+    uid,
+    totalBytes,
+    totalFileCount,
+    byCharacter: byCharacter.sort((a, b) => b.bytes - a.bytes),
+    orphanBytes,
+    orphanFileCount,
+    unrecognizedFiles,
+  };
 }

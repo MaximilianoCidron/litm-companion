@@ -54,3 +54,5 @@ export { bulkCleanupCampaign } from "./bulk-cleanup-campaign";
 export { getCampaignCleanupPreviewAction } from "./get-campaign-cleanup-preview";
 export { setCharacterAvatar } from "./set-character-avatar";
 export { removeCharacterAvatar } from "./remove-character-avatar";
+export { getUserStorageUsageAction } from "./get-user-storage-usage";
+export { cleanupOrphanStorageFiles } from "./cleanup-orphan-storage-files";

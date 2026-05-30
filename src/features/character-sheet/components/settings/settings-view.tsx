@@ -5,6 +5,7 @@ import { AppearanceSection } from "./appearance-section";
 import { DefaultsSection } from "./defaults-section";
 import { NotificationsSection } from "./notifications-section";
 import { PrivacySection } from "./privacy-section";
+import { StorageSection } from "./storage-section";
 
 interface SettingsViewProps {
   initialUser: {
@@ -35,6 +36,7 @@ export function SettingsView({ initialUser }: SettingsViewProps) {
       <AppearanceSection settings={settings} />
       <DefaultsSection settings={settings} />
       <NotificationsSection settings={settings} />
+      <StorageSection />
     </div>
   );
 }

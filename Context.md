@@ -2,7 +2,7 @@
 
 > **Update rule:** Refresh after any change that alters stack, architecture, routes, data model, auth flow, or major features — **before** committing those changes. Canonical snapshot of "what this app is right now."
 
-Last updated: 2026-05-25 (User settings + avatar uploads pass: `userSettings/{uid}` collection with live listener + `<UserSettingsProvider>` + `/settings` route; per-character avatar uploads via Firebase Storage + `storage.rules`; reCAPTCHA v3 **App Check** initialized in `client.ts` — enforcement gated at API edge only, **never** via `request.app` inside Firestore rules (silent permission-denied trap); `<AuthSyncGuard>` reconciles client SDK ↔ session cookie drift and detects revoked refresh tokens; theme cookie pre-paint; presence heartbeat loop; pending-threat reaction banner; campaign session log + bulk cleanup + pending allocations)
+Last updated: 2026-05-29 (Storage usage monitoring pass: lazy-loaded `<StorageSection>` in Settings showing per-user Firebase Storage usage + per-character breakdown + orphan detection cross-checking Storage paths vs `character.avatar`; `getUserStorageUsageAction` + `cleanupOrphanStorageFiles` Server Actions; pure `shared/lib/storage-paths.ts` helpers. Also corrected the avatar Storage path docs to the actual flat shape `users/{uid}/characters/{cid}/avatar.jpg` + `avatar-thumb.jpg`. Prior — User settings + avatar uploads pass: `userSettings/{uid}` collection with live listener + `<UserSettingsProvider>` + `/settings` route; per-character avatar uploads via Firebase Storage + `storage.rules`; reCAPTCHA v3 **App Check** initialized in `client.ts` — enforcement gated at API edge only, **never** via `request.app` inside Firestore rules (silent permission-denied trap); `<AuthSyncGuard>` reconciles client SDK ↔ session cookie drift and detects revoked refresh tokens; theme cookie pre-paint; presence heartbeat loop; pending-threat reaction banner; campaign session log + bulk cleanup + pending allocations)
 
 ---
 
@@ -67,7 +67,7 @@ Firestore collections:
 - `challenges/{challengeId}` (top-level, separate from campaign subcollection) — GM-only standalone challenges.
 
 Storage paths:
-- `users/{uid}/characters/{characterId}/avatar/main.{ext}` + `.../thumb.{ext}` — owner-only write; public read of own folder. Rules in `storage.rules`.
+- `users/{uid}/characters/{characterId}/avatar.jpg` + `.../avatar-thumb.jpg` — owner-only write; public read of own folder. Rules in `storage.rules` (recursive `users/{userId}/{allPaths=**}`). Files are flat under the character folder (no `avatar/` subdir).
 
 ## 4. Authentication
 
@@ -156,7 +156,8 @@ src/
 │       │   │   ├── appearance-section.tsx      # Theme radio (light/dark/system)
 │       │   │   ├── defaults-section.tsx         # confirmBeforeRolling, showRetiredCharacters
 │       │   │   ├── notifications-section.tsx    # showInvitationToasts, showPendingThreatToasts
-│       │   │   └── privacy-section.tsx          # hidePresence
+│       │   │   ├── privacy-section.tsx          # hidePresence (also exports SettingsCard)
+│       │   │   └── storage-section.tsx          # Lazy-loaded Storage usage + per-character breakdown + orphan cleanup (per-user)
 │       │   ├── invite/
 │       │   │   ├── incoming-invitations-section.tsx  # Live listener for directed invitations; toast on arrival when showInvitationToasts
 │       │   │   └── invitation-card.tsx
@@ -234,6 +235,8 @@ src/
 │       │   ├── create-character.ts
 │       │   ├── set-character-avatar.ts        # Persists {mainUrl, thumbUrl}; validates URLs start with FIREBASE_STORAGE_PREFIX AND point at owner+character folder
 │       │   ├── remove-character-avatar.ts     # Clears avatar field; Storage delete is owner-driven client-side (best-effort)
+│       │   ├── get-user-storage-usage.ts      # getUserStorageUsageAction — per-user Storage usage + orphan detection (uid from session)
+│       │   ├── cleanup-orphan-storage-files.ts # cleanupOrphanStorageFiles — best-effort/idempotent delete of orphan files
 │       │   ├── update-user-settings.ts        # patch-based; per-key validation; Admin SDK
 │       │   ├── update-display-name.ts         # Admin SDK auth.updateUser + caller follows with refreshSession()
 │       │   ├── get-campaign-cleanup-preview.ts
@@ -314,6 +317,7 @@ src/
     │   ├── theme.ts
     │   ├── dice.ts                            # server-only secureRollD6() via node:crypto
     │   ├── format.ts                          # formatRelativeTime (Intl.RelativeTimeFormat)
+    │   ├── storage-paths.ts                    # parseStoragePathFromUrl / parseCharacterIdFromAvatarPath / formatBytes (pure, unit-tested)
     │   ├── image-processing.ts                # processAvatar(file) → main + thumb blobs; AvatarProcessingError; resize/recompress to JPEG via canvas
     │   └── avatar-upload.ts                   # uploadAvatar(uid, characterId, processed) → Storage put + returns {mainUrl, thumbUrl}
     ├── hooks/
@@ -356,9 +360,10 @@ Highlights:
 - **`updateUserSettings({ patch })`** Server Action — Admin SDK writes; client rule denies all writes.
 - **`<UserSettingsProvider>`** in `(app)/layout.tsx` exposes `useUserSettings()` to the whole app shell. Defaults during loading so consumers never see `null`. Consumers: `<ThemeApplier>`, `<AppHeaderContainer>`, `<HeartbeatLoop>`, `<IncomingInvitationsSection>`, `<PendingThreatBanner>`, `<RollButton>`, `<SettingsView>`.
 - **`<ThemeApplier>`** — mirrors `themePreference` → `<html>.dark` + `localStorage` (read by pre-paint `<ThemeScript>` to avoid FOUC on next load) + subscribes to `(prefers-color-scheme: dark)` when preference is `"system"`. Replaces the older client-state-only theme toggle.
-- **`/settings` route** (`(app)/settings/page.tsx` + `loading.tsx`) — full `<SettingsView>` with Account / Appearance / Defaults / Notifications / Privacy sections. Account section debounces display-name edits via `useDebouncedFieldSave` → `updateDisplayName` → `refreshSession()` → `router.refresh()` so name updates surface immediately in the header.
-- **Avatar uploads** — per-character. `processAvatar(file)` in `shared/lib/image-processing.ts` resizes/recompresses to JPEG (main + thumb blobs); `uploadAvatar(uid, characterId, processed)` in `shared/lib/avatar-upload.ts` writes to Storage path `users/{uid}/characters/{cid}/avatar/`. `setCharacterAvatar({mainUrl, thumbUrl})` Server Action validates URLs (`FIREBASE_STORAGE_PREFIX` AND owner+character folder path) and commits to `characters/{cid}.avatar`. `removeCharacterAvatar({characterId})` clears the field.
-- **`storage.rules`** — `users/{uid}/characters/{cid}/avatar/{filename}`: only the owner uid in the path can write; reads are public-for-owner (rules check path uid against `request.auth.uid`).
+- **`/settings` route** (`(app)/settings/page.tsx` + `loading.tsx`) — full `<SettingsView>` with Account / Appearance / Defaults / Notifications / Privacy / Storage sections. Account section debounces display-name edits via `useDebouncedFieldSave` → `updateDisplayName` → `refreshSession()` → `router.refresh()` so name updates surface immediately in the header.
+- **Avatar uploads** — per-character. `processAvatar(file)` in `shared/lib/image-processing.ts` resizes/recompresses to JPEG (main + thumb blobs); `uploadAvatar(uid, characterId, processed)` in `shared/lib/avatar-upload.ts` writes the two flat files `users/{uid}/characters/{cid}/avatar.jpg` + `avatar-thumb.jpg`. `setCharacterAvatar({mainUrl, thumbUrl})` Server Action validates URLs (`FIREBASE_STORAGE_PREFIX` AND owner+character folder path) and commits to `characters/{cid}.avatar`. `removeCharacterAvatar({characterId})` clears the field (Storage delete best-effort).
+- **`storage.rules`** — recursive `match /users/{userId}/{allPaths=**}`: only the owner uid in the path can write (auth + owner + image MIME + ≤2MB); reads are owner-only. App Check enforcement on Storage currently OFF (token-attach flakiness).
+- **Storage usage monitoring + orphan cleanup** — `<StorageSection>` (sixth Settings section, lazy-loaded on mount). `getUserStorageUsageAction` returns per-user usage via `getUserStorageUsage(uid)` in `lib/queries.ts`: lists `users/{uid}/` from Admin Storage, groups files by characterId (`parseCharacterIdFromAvatarPath`), cross-checks each path against the character's `avatar.{mainUrl,thumbUrl}` (`parseStoragePathFromUrl`) to mark per-file `isOrphan`. `cleanupOrphanStorageFiles` deletes flagged orphans (best-effort, idempotent; returns `{totalOrphans, deleted, failed}`). Per-user scope only (uid from session, no parameter). Pure helpers + `formatBytes` in `shared/lib/storage-paths.ts` (unit-tested).
 - **App Check (reCAPTCHA v3)** — initialized in `shared/firebase/client.ts` via `getFirebaseAppCheck()` (idempotent; browser-only). Booted by `ensureAppCheckBooted()` called from every public accessor (`getFirebaseAuth`/`Db`/`Storage`) so App Check init runs before the SDK creates the underlying handle. Dev uses `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` (UUID registered in Console). Enforcement is configured at the Firebase Console API edge; rules **never** check `request.app != null` — that would silently 403 every dev request whose token failed to attach (see §9 + the rule-change in this pass).
 - **`firestore.rules` change (load-bearing):** `isSignedIn()` checks `request.auth != null` only. The previous `hasAppCheck()` helper that ANDed `request.app != null` was removed — it created a double-gate where both edge enforcement and rules had to agree, and any debug-token race silently denied every read across `userSettings`, `invitations`, `characters`, `presence`. App Check belongs at edge enforcement only.
 - **`<AuthSyncGuard>`** — mounted in `(app)/layout.tsx`. Reconciles three drift cases between Firebase Auth client SDK and the httpOnly session cookie (see §4): SDK has no user (grace + force sign-out), cached user but revoked refresh token (`getIdToken(true)` throws → force sign-out), uid drift (refresh cookie or sign out). Always uses `window.location.assign("/login")` for sign-out so in-flight Firestore listeners tear down before `/login` mounts.

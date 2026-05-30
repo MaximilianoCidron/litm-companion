@@ -3,14 +3,18 @@ import { useCallback } from "react";
 import { toast } from "@/shared/ui";
 import type { ActionResult } from "@/shared/auth";
 
-interface CallOptions {
-  onSuccess?: string;
+interface CallOptions<T> {
+  /**
+   * Success toast title. A function form receives the action's data payload,
+   * letting callers template the message (e.g. counts) off the result.
+   */
+  onSuccess?: string | ((data: T) => string);
   onError?: (msg: string) => void;
 }
 
 export type CallActionFn = <T>(
   promise: Promise<ActionResult<T>>,
-  opts?: CallOptions,
+  opts?: CallOptions<T>,
 ) => Promise<T | null>;
 
 /**
@@ -22,7 +26,7 @@ export function useActionWithToast(): CallActionFn {
   return useCallback(
     async <T>(
       promise: Promise<ActionResult<T>>,
-      opts?: CallOptions,
+      opts?: CallOptions<T>,
     ): Promise<T | null> => {
       const result = await promise;
       if (!result.ok) {
@@ -32,7 +36,11 @@ export function useActionWithToast(): CallActionFn {
         return null;
       }
       if (opts?.onSuccess) {
-        toast.success(opts.onSuccess);
+        const title =
+          typeof opts.onSuccess === "function"
+            ? opts.onSuccess(result.data)
+            : opts.onSuccess;
+        toast.success(title);
       }
       return result.data;
     },
